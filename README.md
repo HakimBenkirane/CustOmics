@@ -22,5 +22,29 @@ Laboratory of mathematics and informatics of CentraleSupelec
 Paper Link: [Link to the published paper]()
 
 
+### Downloading TCGA Data
+To download omics data (formatted as .tsv files) and other clinical metadata, please refer to the [NIH Genomic Data Commons Data Portal](https://portal.gdc.cancer.gov/) and the [cBioPortal](https://www.cbioportal.org/).
+
+### Running Experiments
+
+Experiments can be executed through the script **main.py**, the basic usage to run a tumor type classification on the Pancancer dataset is as follows:
+
+``` shell
+python main.py --cohorts PANCAN --sources CNV,RNAseq,methyl --task classification --data_directory DATA_DIRECTORY --result_directory RESULTS_DIRECTORY
+```
+
+To run PAM50 classification task on TCGA-BRCA dataset:
+
+``` shell
+python main.py --cohorts TCGA-BRCA --sources CNV,RNAseq,methyl --task classification --data_directory DATA_DIRECTORY --result_directory RESULTS_DIRECTORY
+```
+
+To run survival tasks on specific datasets:
+
+``` shell
+python main.py --cohorts TCGA-BLCA,TCGA-BRCA,TCGA-LUAD,TCGA-GBM,TCGA-UCEC --sources CNV,RNAseq,methyl --task survival --data_directory DATA_DIRECTORY --result_directory RESULTS_DIRECTORY
+```
+
+
 ## License
 This source code is licensed under the [MIT](https://github.com/HakimBenkirane/CustOmics/LICENSE) license.
