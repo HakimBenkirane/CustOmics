@@ -25,6 +25,10 @@ def get_common_samples(dfs):
         common_indices = common_indices & set(lt_indices[i])
     return list(common_indices)
 
+def get_sub_omics_df(omics_df, lt_samples):
+    return {key: value.loc[lt_samples, :] for key, value in omics_df.items()}
+
+
 def read_data(cohort, omic_sources):
     omics_df = {}
     cnv_path = '../TCGA/{}/Omics/CNV/{}.gistic.tsv'.format(cohort,cohort)

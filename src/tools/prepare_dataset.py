@@ -1,7 +1,7 @@
 from random import sample
 import numpy as np
 from sklearn.preprocessing import LabelEncoder, OneHotEncoder
-from src.tools.utils import get_samples, read_data, save_splits, get_splits, extract_tumour_type, read_data_pancan
+from src.tools.utils import get_samples, get_sub_omics_df, read_data, save_splits, get_splits, extract_tumour_type, read_data_pancan
 from src.datasets.multi_omics_dataset import MultiOmicsDataset
 
 
@@ -16,9 +16,6 @@ def prepare_dataset(cohort, sources, n_split, save_split=True, ruche=False):
     else:
         if cohort == 'TCGA-BRCA':
             omics_df, clinical_df , lt_samples = read_data(cohort, sources)
-            le = LabelEncoder().fit(clinical_df.loc[:, 'PAM50'].values)
-            clinical_df.loc[:, 'PAM50'] = le.transform(clinical_df.loc[:, 'PAM50'].values)
-            ohe = OneHotEncoder(sparse=False).fit(clinical_df.loc[:, 'PAM50'].values.reshape(-1,1))
         else:
             omics_df, clinical_df , lt_samples = read_data(cohort, sources)
             ohe = None
@@ -27,15 +24,11 @@ def prepare_dataset(cohort, sources, n_split, save_split=True, ruche=False):
         save_splits(lt_samples, cohort)
     samples_train, samples_val, samples_test = get_splits(cohort, n_split)
     
+    omics_train = get_sub_omics_df(omics_df, samples_train)
+    omics_val = get_sub_omics_df(omics_df, samples_val)
+    omics_test = get_sub_omics_df(omics_df, samples_test)
 
-
-    dataset_train = MultiOmicsDataset(omics_df, clinical_df, samples_train,cohort)
-    dataset_val = MultiOmicsDataset(omics_df, clinical_df, samples_val,cohort)
-    dataset_test = MultiOmicsDataset(omics_df, clinical_df, samples_test,cohort)
 
     x_dim = [omics_df[omic_source].shape[1] for omic_source in omics_df.keys()]
 
-    return omics_df, clinical_df, dataset_train, dataset_val, dataset_test, lt_samples, x_dim, ohe, le
-
-    
-    
+    return omics_df, clinical_df, omics_train, omics_val, omics_test, lt_samples, x_dim

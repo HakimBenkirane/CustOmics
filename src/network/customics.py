@@ -15,19 +15,30 @@ import numpy as np
 from src.loss.survival_loss import CoxLoss
 import torch
 import torch.nn as nn
+from torch.utils.data import DataLoader
 import matplotlib.pyplot as plt
+
+from sklearn.preprocessing import LabelEncoder, OneHotEncoder
 
 from torch.optim import Adam
 
 import shap
 
+from src.datasets.multi_omics_dataset import MultiOmicsDataset
 from src.models.autoencoder import AutoEncoder
+from src.encoders.encoder import Encoder
+from src.decoders.decoder import Decoder
+from src.encoders.probabilistic_encoder import ProbabilisticEncoder
+from src.decoders.probabilistic_decoder import ProbabilisticDecoder
+from src.tasks.classification import MultiClassifier
+from src.tasks.survival import SurvivalNet
 from src.models.vae import VAE
 from src.loss.classification_loss import classification_loss
 from src.loss.consensus_loss import consensus_loss
 from src.metrics.classification import multi_classification_evaluation
 from src.metrics.survival import CIndex_lifeline, cox_log_rank
 from src.tools.utils import save_plot_score
+from src.tools.utils import get_common_samples
 from lifelines import KaplanMeierFitter
 
 import matplotlib.pyplot as plt
@@ -39,9 +50,7 @@ class CustOMICS(nn.Module):
     """
     The main CustOMICS object that represents the main network for dealing with multi-source integration and multi-task learning
     """
-    def __init__(self, n_source, lt_encoders, lt_decoders, central_encoder, central_decoder, device, 
-                    beta = 1, lr = 1e-3, num_classes=None, classifier=None, survival_predictor=None, 
-                    lambda_classif = 1, lambda_survival=1, switch=10):
+    def __init__(self, source_params, central_params, classif_params, surv_params, train_params, device):
         """
         Construct the whole architecture with intermediate autoencoders, central layer and eventually downstream predictors
         Parameters:
@@ -59,21 +68,33 @@ class CustOMICS(nn.Module):
             variational (boolean)     -- whether or not to consider variational inference in intermediate autoencoders
         """
         super(CustOMICS, self).__init__()
-        self.n_source = n_source
+        self.n_source = len(list(source_params.keys()))
         self.device = device
-        self.lt_encoders = lt_encoders
-        self.lt_decoders = lt_decoders
-        self.central_encoder = central_encoder
-        self.central_decoder = central_decoder
-        self.beta = beta
-        self.lr = lr
-        self.num_classes = num_classes
-        self.lambda_survival = lambda_survival
-        self.lambda_classif = lambda_classif
-        self.classifier = classifier
-        self.survival_predictor = survival_predictor
+        self.lt_encoders = [Encoder(input_dim=source_params[source]['input_dim'], hidden_dim=source_params[source]['hidden_dim'],
+                             latent_dim=source_params[source]['latent_dim'], norm_layer=source_params[source]['norm'], 
+                             dropout=source_params[source]['dropout']) for source in source_params.keys()]
+        self.lt_decoders = [Decoder(latent_dim=source_params[source]['latent_dim'], hidden_dim=source_params[source]['hidden_dim'],
+                             output_dim=source_params[source]['input_dim'], norm_layer=source_params[source]['norm'], 
+                             dropout=source_params[source]['dropout']) for source in source_params.keys()]
+        self.rep_dim = sum([source_params[source]['latent_dim'] for source in source_params])
+        self.central_encoder = ProbabilisticEncoder(input_dim=self.rep_dim, hidden_dim=central_params['hidden_dim'], 
+                                                    latent_dim=central_params['latent_dim'], norm_layer=central_params['norm'],
+                                                    dropout=central_params['dropout'])
+        self.central_decoder = ProbabilisticDecoder(latent_dim=central_params['latent_dim'], hidden_dim=central_params['hidden_dim'], 
+                                                    output_dim=self.rep_dim, norm_layer=central_params['norm'],
+                                                    dropout=central_params['dropout'])
+        self.beta = central_params['beta']
+        self.num_classes = classif_params['n_class']
+        self.lambda_classif = classif_params['lambda']
+        self.classifier =  MultiClassifier(n_class=self.num_classes, latent_dim=central_params['latent_dim'], dropout=classif_params['dropout'],
+            class_dim = classif_params['hidden_layers']).to(self.device)
+        self.lambda_survival = surv_params['lambda']
+        surv_param = {'drop': surv_params['dropout'], 'norm': surv_params['norm'], 'dims': [central_params['latent_dim']] + surv_params['dims'] + [1], 
+                    'activation': surv_params['activation'], 'l2_reg': surv_params['l2_reg'], 'device': self.device}
+        self.survival_predictor = SurvivalNet(surv_param)
         self.phase = 1
-        self.switch_epoch = switch
+        self.switch_epoch = train_params['switch']
+        self.lr = train_params['lr']
         self.autoencoders = []
         self.central_layer = None
         self._set_autoencoders()
@@ -82,16 +103,16 @@ class CustOMICS(nn.Module):
         self.optimizer = self._get_optimizer(self.lr)
         self.vae_history = []
         self.survival_history = []
+        self.label_encoder = None
+        self.one_hot_encoder = None
 
     def _get_optimizer(self, lr):
         lt_params = []
         for autoencoder in self.autoencoders:
             lt_params += list(autoencoder.parameters())
         lt_params += list(self.central_layer.parameters())
-        if self.survival_predictor:
-            lt_params += list(self.survival_predictor.parameters())
-        if self.classifier:
-            lt_params += list(self.classifier.parameters())        
+        lt_params += list(self.survival_predictor.parameters())
+        lt_params += list(self.classifier.parameters())        
         optimizer = Adam(lt_params, lr=lr)
         return optimizer
 
@@ -169,49 +190,57 @@ class CustOMICS(nn.Module):
         if self.phase == 1:
             lt_rep, loss = self._compute_loss(x)
             for z in lt_rep:
-                if self.survival_predictor:
-                    hazard_pred = self.survival_predictor(z)
-                    survival_loss = CoxLoss(survtime=os_time, censor=os_event, hazard_pred=hazard_pred, device=self.device)
-                    y_pred = self.survival_predictor(z)
-                    loss += self.lambda_survival * survival_loss
-                if self.classifier:
-                    y_pred_proba = self.classifier(z)
-                    y_pred = torch.argmax(y_pred_proba, dim=1).reshape(-1,1)
-                    oh_labels = nn.functional.one_hot(labels.long(), num_classes=self.num_classes)
-                    classification = classification_loss('CE', y_pred_proba, labels)
-                    loss += self.lambda_classif * classification
-
-        elif self.phase == 2:
-            z, loss = self._compute_loss(x)
-            if self.survival_predictor:
                 hazard_pred = self.survival_predictor(z)
                 survival_loss = CoxLoss(survtime=os_time, censor=os_event, hazard_pred=hazard_pred, device=self.device)
-                y_pred = self.survival_predictor(z)
                 loss += self.lambda_survival * survival_loss
-            if self.classifier:
                 y_pred_proba = self.classifier(z)
-                y_pred = torch.argmax(y_pred_proba, dim=1).reshape(-1,1)
-                oh_labels = nn.functional.one_hot(labels.long(), num_classes=self.num_classes)
                 classification = classification_loss('CE', y_pred_proba, labels)
                 loss += self.lambda_classif * classification
 
+        elif self.phase == 2:
+            z, loss = self._compute_loss(x)
+            hazard_pred = self.survival_predictor(z)
+            survival_loss = CoxLoss(survtime=os_time, censor=os_event, hazard_pred=hazard_pred, device=self.device)
+            loss += self.lambda_survival * survival_loss
+            y_pred_proba = self.classifier(z)
+            classification = classification_loss('CE', y_pred_proba, labels)
+            loss += self.lambda_classif * classification
+
         return loss
 
-    def fit(self, train_data, val_data=None, batch_size=32, n_epochs=30, verbose=False):
+    def fit(self, omics_train, clinical_df, label, event, surv_time, omics_val=None, batch_size=32, n_epochs=30, verbose=False):
+        
+        encoded_clinical_df = clinical_df.copy()
+        self.label_encoder = LabelEncoder().fit(encoded_clinical_df.loc[:, label].values)
+        encoded_clinical_df.loc[:, 'PAM50'] = self.label_encoder.transform(encoded_clinical_df.loc[:, label].values)
+        self.one_hot_encoder = OneHotEncoder(sparse=False).fit(encoded_clinical_df.loc[:, label].values.reshape(-1,1))
+
+        kwargs = {'num_workers': 2, 'pin_memory': True} if self.device.type == "cuda" else {}
+
+        lt_samples_train = get_common_samples([df for df in omics_train.values()] + [clinical_df])
+        dataset_train = MultiOmicsDataset(omics_df=omics_train, clinical_df=encoded_clinical_df, lt_samples=lt_samples_train,
+                                            label=label, event=event, surv_time=surv_time)
+        train_loader = DataLoader(dataset_train, batch_size=batch_size, shuffle=False, **kwargs)
+        if omics_val:
+            lt_samples_val = get_common_samples([df for df in omics_val.values()] + [clinical_df])
+            dataset_val = MultiOmicsDataset(omics_df=omics_val, clinical_df=encoded_clinical_df, lt_samples=lt_samples_val,
+                                            label=label, event=event, surv_time=surv_time)
+            val_loader = DataLoader(dataset_val, batch_size=batch_size, shuffle=False, **kwargs)
+
         self.history = []
         self.train_all()
         for epoch in range(n_epochs):
             overall_loss = 0
             self._switch_phase(epoch)
-            for batch_idx, (x,labels,os_time,os_event) in enumerate(train_data):
+            for batch_idx, (x,labels,os_time,os_event) in enumerate(train_loader):
                 loss_train = self._train_loop(x, labels, os_time,os_event)
                 overall_loss += loss_train.item()
                 loss_train.backward()
                 self.optimizer.step()
             average_loss_train = overall_loss / ((batch_idx+1)*batch_size)
             overall_loss = 0
-            if val_data != None:
-                for batch_idx, (x,labels, os_time,os_event) in enumerate(val_data):
+            if val_loader != None:
+                for batch_idx, (x,labels, os_time,os_event) in enumerate(val_loader):
                     loss_val = self._train_loop(x, labels, os_time,os_event)
                     overall_loss += loss_val.item()
                 average_loss_val = overall_loss / ((batch_idx+1)*batch_size)
@@ -263,33 +292,46 @@ class CustOMICS(nn.Module):
 
 
 
-    def evaluate(self, test_data, ohe):
+    def evaluate(self, omics_test, clinical_df, label, event, surv_time, task, batch_size=32):
+
+        encoded_clinical_df = clinical_df.copy()
+        encoded_clinical_df.loc[:, 'PAM50'] = self.label_encoder.transform(encoded_clinical_df.loc[:, label].values)
+
+        kwargs = {'num_workers': 2, 'pin_memory': True} if self.device.type == "cuda" else {}
+
+        lt_samples_train = get_common_samples([df for df in omics_test.values()] + [clinical_df])
+        dataset_test = MultiOmicsDataset(omics_df=omics_test, clinical_df=encoded_clinical_df, lt_samples=lt_samples_train,
+                                            label=label, event=event, surv_time=surv_time)
+        test_loader = DataLoader(dataset_test, batch_size=batch_size, shuffle=False, **kwargs)
+
         self.eval_all()
         classif_metrics = []
         c_index = []
         with torch.no_grad():
-            for batch_idx, (x, labels, os_time, os_event) in enumerate(test_data):
+            for batch_idx, (x, labels, os_time, os_event) in enumerate(test_loader):
                 z, loss  = self._compute_loss(x)
-                if self.survival_predictor:
+                print(z)
+                if task == 'survival':
                     predicted_survival_hazard = self.survival_predictor(z)
                     predicted_survival_hazard = predicted_survival_hazard.cpu().detach().numpy().reshape(-1, 1)
                     os_time = os_time.cpu().detach().numpy()
                     os_event = os_event.cpu().detach().numpy()
                     c_index.append(CIndex_lifeline(predicted_survival_hazard, os_event, os_time))
                     return np.mean(c_index)
-                if self.classifier:
+                elif task == 'classification':
                     y_pred_proba = self.classifier(z)
                     y_pred = torch.argmax(y_pred_proba, dim=1).cpu().detach().numpy()
                     y_pred_proba = y_pred_proba.cpu().detach().numpy()
                     y_true = labels.cpu().detach().numpy()
-                    classif_metrics.append(multi_classification_evaluation(y_true, y_pred, y_pred_proba, ohe=ohe))
+                    classif_metrics.append(multi_classification_evaluation(y_true, y_pred, y_pred_proba, ohe=self.one_hot_encoder))
+                
                     return classif_metrics
 
 
 
-        
-
-    def stratify(self, omics_df, lt_samples, clinical_df, cohort, treshold=0.5):
+    def stratify(self, omics_df, clinical_df, event, surv_time, treshold=0.5, 
+                    save_plot=False, plot_title="", filename=''):
+        lt_samples = get_common_samples([df for df in omics_df.values()] + [clinical_df])
         z = self.get_latent_representation(omics_df)
         hazard_pred = self.survival_predictor(torch.Tensor(z)).cpu().detach().numpy()
         dt_strat = {'high': [], 'low': []}
@@ -300,20 +342,18 @@ class CustOMICS(nn.Module):
                 dt_strat['high'].append(lt_samples[i])
         kmf_low = KaplanMeierFitter(label='low risk')
         kmf_high = KaplanMeierFitter(label='high risk')
-        if cohort == "PANCAN":
-            kmf_low.fit(clinical_df.loc[dt_strat['low'], 'OS.time'], clinical_df.loc[dt_strat['low'], 'OS'])
-            kmf_high.fit(clinical_df.loc[dt_strat['high'], 'OS.time'], clinical_df.loc[dt_strat['high'], 'OS'])
-            p_value = cox_log_rank(hazard_pred.reshape(1,-1)[0], np.array(clinical_df.loc[lt_samples, 'OS'].values, dtype=float), np.array(clinical_df.loc[lt_samples, 'OS.time'].values, dtype=float))
-        else:
-            kmf_low.fit(clinical_df.loc[dt_strat['low'], 'overall_survival'], clinical_df.loc[dt_strat['low'], 'status'])
-            kmf_high.fit(clinical_df.loc[dt_strat['high'], 'overall_survival'], clinical_df.loc[dt_strat['high'], 'status'])
-            p_value = cox_log_rank(hazard_pred.reshape(1,-1)[0], np.array(clinical_df.loc[lt_samples, 'status'].values, dtype=float), np.array(clinical_df.loc[lt_samples, 'overall_survival'].values, dtype=float))
+        kmf_low.fit(clinical_df.loc[dt_strat['low'], surv_time], clinical_df.loc[dt_strat['low'], event])
+        kmf_high.fit(clinical_df.loc[dt_strat['high'], surv_time], clinical_df.loc[dt_strat['high'], event])
+        p_value = cox_log_rank(hazard_pred.reshape(1,-1)[0], np.array(clinical_df.loc[lt_samples, event].values, dtype=float), np.array(clinical_df.loc[lt_samples, surv_time].values, dtype=float))
+
         kmf_low.plot()
         kmf_high.plot()
-        p_value = 2.1e-6
-        plt.title("Kaplan Meier curve for {} (p-value = {:.3g})".format(cohort, p_value))
+        plt.title(plot_title + " (p-value = {:.3g})".format(p_value))
         plt.xlim((0,2500))
-        plt.savefig('KaplanMeier_{}.png'.format(cohort), bbox_inches='tight')
+        if save_plot:
+            plt.savefig(filename, bbox_inches='tight')
+        else:
+            plt.show()
 
 
     def explain(self, omics_df, source, patient):
