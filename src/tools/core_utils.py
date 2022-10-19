@@ -1,14 +1,5 @@
 from src.network.customics import CustOMICS
 from src.tools.prepare_dataset import prepare_dataset
-from src.tasks.classification import MultiClassifier
-from src.tasks.survival import SurvivalNet
-from src.encoders.probabilistic_encoder import ProbabilisticEncoder
-from src.decoders.probabilistic_decoder import ProbabilisticDecoder
-from src.encoders.encoder import Encoder
-from src.decoders.decoder import Decoder
-from src.network.customics import CustOMICS
-from src.ex_vae.shap_vae import explain_vae
-from sklearn.model_selection import train_test_split
 
 from torch.utils.data import DataLoader
 
@@ -28,9 +19,9 @@ def train(task, cohorts, sources, split, device, num_classes=4,
     latent_dim=128
 
     source_params = {}
-    central_params = {'hidden_dim': [128, 64], 'latent_dim': latent_dim, 'norm': True, 'dropout': 0.2, 'beta': 1}
-    classif_params = {'n_class': 4, 'lambda': 5, 'hidden_layers': [128, 64], 'dropout': 0.2}
-    surv_params = {'lambda': 20, 'dims': [64, 32], 'activation': 'SELU', 'l2_reg': 1e-2, 'norm': True, 'dropout': 0.2}
+    central_params = {'hidden_dim': central_dim, 'latent_dim': latent_dim, 'norm': True, 'dropout': dropout, 'beta': beta}
+    classif_params = {'n_class': num_classes, 'lambda': lambda_classif, 'hidden_layers': classifier_dim, 'dropout': dropout}
+    surv_params = {'lambda': lambda_survival, 'dims': survival_dim, 'activation': 'SELU', 'l2_reg': 1e-2, 'norm': True, 'dropout': dropout}
     for i, source in enumerate(sources):
         source_params[source] = {'input_dim': x_dim[i], 'hidden_dim': hidden_dim, 'latent_dim': rep_dim, 'norm': True, 'dropout': 0.2}
     train_params = {'switch': 5, 'lr': 1e-3}
@@ -43,8 +34,10 @@ def train(task, cohorts, sources, split, device, num_classes=4,
     model.fit(omics_train=omics_train, clinical_df=clinical_df, label='PAM50', event='status', surv_time='overall_survival',
                 omics_val=omics_val, batch_size=batch_size, n_epochs=n_epochs, verbose=True)
     metric = model.evaluate(omics_test=omics_test, clinical_df=clinical_df, label='PAM50', event='status', surv_time='overall_survival',
-                    task='survival', batch_size=1024)
-
-        #explain_vae(lt_samples, model, omics_df['RNAseq'], clinical_df, 'RNAseq', 'Her2', device, le)
-    model.stratify(omics_df=omics_train, clinical_df=clinical_df, event='status', surv_time='overall_survival')
+                    task=task, batch_size=1024, plot_roc=False)
+    model.plot_representation(omics_train, clinical_df, 'PAM50', 'plot_representation', 'Representation of the latent space')
+    model.explain(lt_samples, omics_df, clinical_df, 'RNAseq', 'Her2', device)
+    if task == 'survival':
+        print(model.predict_survival(omics_test))
+        model.stratify(omics_df=omics_train, clinical_df=clinical_df, event='status', surv_time='overall_survival')
     return metric

@@ -11,6 +11,7 @@
 Oncostat Team, U1018 Inserm, CESP
 Laboratory of mathematics and informatics of CentraleSupelec
 
+
 ### Introduction
 -  CustOmics is a novel architecture for classification and survival outcome prediction.
 -  CustOmics uses a new integration strategy for a more versatile multi-omics integration.
@@ -48,3 +49,7 @@ python main.py --cohorts TCGA-BLCA,TCGA-BRCA,TCGA-LUAD,TCGA-GBM,TCGA-UCEC --sour
 
 ## License
 This source code is licensed under the [MIT](https://github.com/HakimBenkirane/CustOmics/LICENSE) license.
+
+# Cite us
+
+Our paper is not published yet. Meanwhile, you can [read our preprint or arXiv](https://arxiv.org/abs/2209.05485).

@@ -35,10 +35,11 @@ from src.tasks.survival import SurvivalNet
 from src.models.vae import VAE
 from src.loss.classification_loss import classification_loss
 from src.loss.consensus_loss import consensus_loss
-from src.metrics.classification import multi_classification_evaluation
+from src.metrics.classification import multi_classification_evaluation, plot_roc_multiclass
 from src.metrics.survival import CIndex_lifeline, cox_log_rank
 from src.tools.utils import save_plot_score
 from src.tools.utils import get_common_samples
+from src.ex_vae.shap_vae import processPhenotypeDataForSamples, randomTrainingSample, splitExprandSample, ModelWrapper, addToTensor
 from lifelines import KaplanMeierFitter
 
 import matplotlib.pyplot as plt
@@ -134,6 +135,11 @@ class CustOMICS(nn.Module):
         else:
             self.phase = 2
 
+    def _compute_baseline(self, clinical_df, lt_samples, event, surv_time):
+        kmf = KaplanMeierFitter()
+        kmf.fit(clinical_df.loc[lt_samples, surv_time], clinical_df.loc[lt_samples, event])
+        return kmf.survival_function_
+
 
     def per_source_forward(self, x):
         lt_forward = []
@@ -208,6 +214,7 @@ class CustOMICS(nn.Module):
 
         return loss
 
+
     def fit(self, omics_train, clinical_df, label, event, surv_time, omics_val=None, batch_size=32, n_epochs=30, verbose=False):
         
         encoded_clinical_df = clinical_df.copy()
@@ -218,6 +225,7 @@ class CustOMICS(nn.Module):
         kwargs = {'num_workers': 2, 'pin_memory': True} if self.device.type == "cuda" else {}
 
         lt_samples_train = get_common_samples([df for df in omics_train.values()] + [clinical_df])
+        self.baseline = self._compute_baseline(clinical_df, lt_samples_train, event, surv_time)
         dataset_train = MultiOmicsDataset(omics_df=omics_train, clinical_df=encoded_clinical_df, lt_samples=lt_samples_train,
                                             label=label, event=event, surv_time=surv_time)
         train_loader = DataLoader(dataset_train, batch_size=batch_size, shuffle=False, **kwargs)
@@ -228,11 +236,11 @@ class CustOMICS(nn.Module):
             val_loader = DataLoader(dataset_val, batch_size=batch_size, shuffle=False, **kwargs)
 
         self.history = []
-        self.train_all()
         for epoch in range(n_epochs):
             overall_loss = 0
             self._switch_phase(epoch)
             for batch_idx, (x,labels,os_time,os_event) in enumerate(train_loader):
+                self.train_all()
                 loss_train = self._train_loop(x, labels, os_time,os_event)
                 overall_loss += loss_train.item()
                 loss_train.backward()
@@ -241,6 +249,7 @@ class CustOMICS(nn.Module):
             overall_loss = 0
             if val_loader != None:
                 for batch_idx, (x,labels, os_time,os_event) in enumerate(val_loader):
+                    self.eval_all()
                     loss_val = self._train_loop(x, labels, os_time,os_event)
                     overall_loss += loss_val.item()
                 average_loss_val = overall_loss / ((batch_idx+1)*batch_size)
@@ -269,13 +278,11 @@ class CustOMICS(nn.Module):
         return self.autoencoders[0].decode(z).cpu().detach().numpy()
 
 
-    def plot_representation(self, omics_df, labels_df, lt_samples, source, title, le=None):
-        if source == 'representation':
-            z = self.get_latent_representation(omics_df=omics_df)
-            save_plot_score('representation_plot', z, labels_df[lt_samples].values, title, le=le)
-        else:
-            print(labels_df)
-            save_plot_score('{}_plot'.format(source), omics_df[source].values, labels_df[lt_samples].values, title, le=le)
+    def plot_representation(self, omics_df, clinical_df, labels, filename, title):
+        labels_df = clinical_df.loc[:, labels]
+        lt_samples = get_common_samples([df for df in omics_df.values()] + [clinical_df])
+        z = self.get_latent_representation(omics_df=omics_df)
+        save_plot_score(filename, z, labels_df[lt_samples].values, title)
 
 
     def source_predict(self, expr_df, source):
@@ -290,12 +297,25 @@ class CustOMICS(nn.Module):
         y_pred_proba = self.classifier(z)
         return y_pred_proba
 
+    def predict_risk(self, omics_df):
+        z = self.get_latent_representation(omics_df)
+        return self.survival_predictor(torch.Tensor(z))
+
+    def predict_survival(self, omics_df, t=None):
+        lt_samples = get_common_samples([df for df in omics_df.values()])
+        dt_surv = {}
+        risk_score = self.predict_risk(omics_df).cpu().detach().numpy()
+        for sample, risk in zip(lt_samples, risk_score):
+            dt_surv[sample] = self.baseline*np.exp(risk[0])
+        return dt_surv
 
 
-    def evaluate(self, omics_test, clinical_df, label, event, surv_time, task, batch_size=32):
+
+
+    def evaluate(self, omics_test, clinical_df, label, event, surv_time, task, batch_size=32, plot_roc=False):
 
         encoded_clinical_df = clinical_df.copy()
-        encoded_clinical_df.loc[:, 'PAM50'] = self.label_encoder.transform(encoded_clinical_df.loc[:, label].values)
+        encoded_clinical_df.loc[:, label] = self.label_encoder.transform(encoded_clinical_df.loc[:, label].values)
 
         kwargs = {'num_workers': 2, 'pin_memory': True} if self.device.type == "cuda" else {}
 
@@ -310,7 +330,6 @@ class CustOMICS(nn.Module):
         with torch.no_grad():
             for batch_idx, (x, labels, os_time, os_event) in enumerate(test_loader):
                 z, loss  = self._compute_loss(x)
-                print(z)
                 if task == 'survival':
                     predicted_survival_hazard = self.survival_predictor(z)
                     predicted_survival_hazard = predicted_survival_hazard.cpu().detach().numpy().reshape(-1, 1)
@@ -324,6 +343,10 @@ class CustOMICS(nn.Module):
                     y_pred_proba = y_pred_proba.cpu().detach().numpy()
                     y_true = labels.cpu().detach().numpy()
                     classif_metrics.append(multi_classification_evaluation(y_true, y_pred, y_pred_proba, ohe=self.one_hot_encoder))
+                    if plot_roc:
+                        plot_roc_multiclass(y_test=y_true, y_pred_proba=y_pred_proba, filename='test', n_classes=self.num_classes,
+                                            var_names=np.unique(clinical_df.loc[:, label].values.tolist()))
+
                 
                     return classif_metrics
 
@@ -356,11 +379,41 @@ class CustOMICS(nn.Module):
             plt.show()
 
 
-    def explain(self, omics_df, source, patient):
-        data_summary = shap.kmeans(omics_df[source], 100)
-        explainer_autoencoder = shap.KernelExplainer(self.reconstruct, omics_df[source].values)
-        shap_values = explainer_autoencoder.shap_values(omics_df[source].loc[patient,:].values)
-        print(shap_values)
+    def explain(self, sample_id, omics_df, clinical_df, source, subtype, device='cpu'):
+        """
+        :param sample_id: List of samplesid to consider for explanation.
+        :param vae_model: The CustOmics model to explain, the output should be a 1xn_class tensor.
+        :param expr_df: DataFrame of data to explain, the input has to match the source selected for the explanation.
+        :param clinical_df: DataFrame containing the clinical data.
+        :param source: Omic source to explain.
+        :param subtype: Subtype that needs explanation, shap values will be computed for this subtypes against the others.
+        :param le: LabelEncoder to revert back from numerical encoding to original names.
+        :return:None, plots of the top 10 genes and their shap values
+        """
+        #This class has combined the different analysis' of the Deep SHAP values we conducted.
+        #SHAP reference: Lundberg et al., 2017: http://papers.nips.cc/paper/7062-a-unified-approach-to-interpreting-model-predictions.pdf
+
+        expr_df = omics_df[source]
+        sample_id = list(set(sample_id).intersection(set(expr_df.index)))
+        phenotype = processPhenotypeDataForSamples(clinical_df, sample_id, self.label_encoder)
+
+        conditionaltumour=phenotype.loc[:, 'PAM50'] == subtype
+
+        
+        expr_df = expr_df.loc[sample_id,:]
+        normal_expr = randomTrainingSample(expr_df, 10)
+        tumour_expr = splitExprandSample(condition=conditionaltumour, sampleSize=10, expr=expr_df)
+        # put on device as correct datatype
+        background = addToTensor(expr_selection=normal_expr, device=device)
+        male_expr_tensor = addToTensor(expr_selection=tumour_expr, device=device)
+
+
+        e = shap.DeepExplainer(ModelWrapper(self, source=source), background)
+        shap_values_female = e.shap_values(male_expr_tensor, ranked_outputs=None)
+
+        shap.summary_plot(shap_values_female[0],features=tumour_expr,feature_names=list(tumour_expr.columns), show=False, plot_type="violin", max_display=10, plot_size=[4,6])
+        plt.savefig('shap_{}_{}.png'.format(source, subtype), bbox_inches='tight')
+        plt.clf()
 
     def print_parameters(self):
         lt_params = []

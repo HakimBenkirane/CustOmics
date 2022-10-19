@@ -11,7 +11,7 @@ parser.add_argument('-c', '--cohorts', help='list of cohorts to process', type=s
 parser.add_argument('-dv', '--device', help='torch device in which the computations will be done', type=str, default='cpu')
 parser.add_argument('-dr', '--data_directory', help='folder in which the data are stored', type=str, default='../TCGA/')
 parser.add_argument('-res', '--result_directory', help='folder in which the results should be stored', type=str, default='results/')
-parser.add_argument('-t', '--task', help='task to perform', type=str, choices=['classification', 'survival'], default='classification')
+parser.add_argument('-t', '--task', help='task to perform', type=str, choices=['classification', 'survival'], default='survival')
 parser.add_argument('-src', '--sources', help='list of sources to integrate', type=str, default='CNV,RNAseq,methyl')
 
 
@@ -30,8 +30,8 @@ parser.add_argument('-lt', '--latent_dim', help='size of the latent vector', typ
 
 parser.add_argument('-ch', '--classifier_dim', help='list of neurones for the classifier hidden layers', type=str, default='256,128')
 parser.add_argument('-sh', '--survival_dim', help='list of neurones for the survival hidden layers', type=str, default='64,32')
-parser.add_argument('-lc', '--lambda_classif', help='weight of the classification loss', type=float, default=5)
-parser.add_argument('-ls', '--lambda_survival', help='weight of the survival loss', type=float, default=5)
+parser.add_argument('-lc', '--lambda_classif', help='weight of the classification loss', type=float, default=1)
+parser.add_argument('-ls', '--lambda_survival', help='weight of the survival loss', type=float, default=0)
 
 parser.add_argument('-xp', '--explain', help='choose if you want to explain the results or not', type=bool, default=False)
 parser.add_argument('-cxp', '--explained_class', help='class to explain', type=str, default='Her2')

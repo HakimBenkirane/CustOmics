@@ -193,20 +193,17 @@ def fashion_scatter(x, colors):
 
     return f, ax, sc, txts
 
-def save_plot_score(filename, z, y, title, le=None):
+def save_plot_score(filename, z, y, title):
     tsne = TSNE(n_components=2, verbose=0, perplexity=40, n_iter=300)
     tsne_embed = tsne.fit_transform(z)
     df = pd.DataFrame()
-    if le == None:
-        df['targets'] = y
-    else:
-        df['targets'] = le.inverse_transform(y)
+    df['targets'] = y
     df['x-axis'] = tsne_embed[:,0]
     df['y-axis'] = tsne_embed[:,1]
     #fashion_scatter(tsne_embed, y)
     sns_plot = sns.scatterplot(x='x-axis', y='y-axis', hue=df.targets.tolist(),
-                    palette=sns.color_palette('hls', len(np.unique(le.inverse_transform(y)))),data=df).set(title=title, fontweight="bold")
-    plt.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.)
+                    palette=sns.color_palette('hls', len(np.unique(y))),data=df).set(title=title)
+    plt.legend(bbox_to_anchor=(1.5, 1.1), loc=2, borderaxespad=0.)
     plt.savefig(filename +  '.png', bbox_inches='tight')
     # Put the legend out of the figure
     plt.clf()

@@ -23,7 +23,6 @@ def loadData(input_path):
 
 def processPhenotypeDataForSamples(clinical_df, sample_id, le):
     phenotype = clinical_df
-    phenotype.loc[:, 'PAM50'] = le.inverse_transform(clinical_df.loc[:, 'PAM50'].values)
     phenotype = phenotype.loc[sample_id, :]
     return phenotype
 
