@@ -19,6 +19,7 @@ from torch.utils.data import DataLoader
 import matplotlib.pyplot as plt
 
 from sklearn.preprocessing import LabelEncoder, OneHotEncoder
+from sklearn.svm import SVC
 
 from torch.optim import Adam
 
@@ -219,7 +220,7 @@ class CustOMICS(nn.Module):
         
         encoded_clinical_df = clinical_df.copy()
         self.label_encoder = LabelEncoder().fit(encoded_clinical_df.loc[:, label].values)
-        encoded_clinical_df.loc[:, 'PAM50'] = self.label_encoder.transform(encoded_clinical_df.loc[:, label].values)
+        encoded_clinical_df.loc[:, label] = self.label_encoder.transform(encoded_clinical_df.loc[:, label].values)
         self.one_hot_encoder = OneHotEncoder(sparse=False).fit(encoded_clinical_df.loc[:, label].values.reshape(-1,1))
 
         kwargs = {'num_workers': 2, 'pin_memory': True} if self.device.type == "cuda" else {}
@@ -263,9 +264,12 @@ class CustOMICS(nn.Module):
                     print("\tEpoch", epoch + 1, "complete!", "\tAverage Loss Train : ", average_loss_train)
 
 
-    def get_latent_representation(self, omics_df):
+    def get_latent_representation(self, omics_df, tensor=False):
         self.eval_all()
-        x = [torch.Tensor(omics_df[source].values) for source in omics_df.keys()]
+        if tensor == False:
+            x = [torch.Tensor(omics_df[source].values) for source in omics_df.keys()]
+        else:
+            x = [omics for omics in omics_df]
         with torch.no_grad():
             for i in range(len(x)):
                 x[i] = x[i].to(self.device)
@@ -278,19 +282,19 @@ class CustOMICS(nn.Module):
         return self.autoencoders[0].decode(z).cpu().detach().numpy()
 
 
-    def plot_representation(self, omics_df, clinical_df, labels, filename, title):
+    def plot_representation(self, omics_df, clinical_df, labels, filename, title, show=True):
         labels_df = clinical_df.loc[:, labels]
         lt_samples = get_common_samples([df for df in omics_df.values()] + [clinical_df])
         z = self.get_latent_representation(omics_df=omics_df)
-        save_plot_score(filename, z, labels_df[lt_samples].values, title)
+        save_plot_score(filename, z, labels_df[lt_samples].values, title, show=True)
 
 
     def source_predict(self, expr_df, source):
         #tensor_expr = torch.Tensor(expr_df.values)
         tensor_expr = expr_df
-        if source == 'CNV':
+        if source == 'CNV' or source == 'protein':
             z = self.lt_encoders[0](tensor_expr)
-        elif source == 'RNAseq':
+        elif source == 'RNAseq' or source == 'gene_exp':
             z = self.lt_encoders[1](tensor_expr)
         elif source == 'methyl':
             z = self.lt_encoders[2](tensor_expr)
@@ -308,6 +312,46 @@ class CustOMICS(nn.Module):
         for sample, risk in zip(lt_samples, risk_score):
             dt_surv[sample] = self.baseline*np.exp(risk[0])
         return dt_surv
+
+    def evaluate_latent(self, omics_test, clinical_df, label, event, surv_time, task, batch_size=32, plot_roc=False):
+        encoded_clinical_df = clinical_df.copy()
+        encoded_clinical_df.loc[:, label] = self.label_encoder.transform(encoded_clinical_df.loc[:, label].values)
+
+        kwargs = {'num_workers': 2, 'pin_memory': True} if self.device.type == "cuda" else {}
+
+        lt_samples_train = get_common_samples([df for df in omics_test.values()] + [clinical_df])
+        dataset_test = MultiOmicsDataset(omics_df=omics_test, clinical_df=encoded_clinical_df, lt_samples=lt_samples_train,
+                                            label=label, event=event, surv_time=surv_time)
+        test_loader = DataLoader(dataset_test, batch_size=batch_size, shuffle=False, **kwargs)
+
+        self.eval_all()
+        classif_metrics = []
+        c_index = []
+        with torch.no_grad():
+            for batch_idx, (x, labels, os_time, os_event) in enumerate(test_loader):
+                z, loss  = self._compute_loss(x)
+                if task == 'survival':
+                    predicted_survival_hazard = self.survival_predictor(z)
+                    predicted_survival_hazard = predicted_survival_hazard.cpu().detach().numpy().reshape(-1, 1)
+                    os_time = os_time.cpu().detach().numpy()
+                    os_event = os_event.cpu().detach().numpy()
+                    c_index.append(CIndex_lifeline(predicted_survival_hazard, os_event, os_time))
+                    return np.mean(c_index)
+                elif task == 'classification':
+                    svc_model = SVC()
+                    z = self.get_latent_representation(x, tensor=True)
+                    svc_model.fit(z.cpu().detach().numpy(), labels.cpu().detach().numpy())
+                    y_pred_proba = svc_model.predict_proba()
+                    y_pred = torch.argmax(y_pred_proba, dim=1).cpu().detach().numpy()
+                    y_pred_proba = y_pred_proba.cpu().detach().numpy()
+                    y_true = labels.cpu().detach().numpy()
+                    classif_metrics.append(multi_classification_evaluation(y_true, y_pred, y_pred_proba, ohe=self.one_hot_encoder))
+                    if plot_roc:
+                        plot_roc_multiclass(y_test=y_true, y_pred_proba=y_pred_proba, filename='test', n_classes=self.num_classes,
+                                            var_names=np.unique(clinical_df.loc[:, label].values.tolist()))
+
+                
+                    return classif_metrics
 
 
 
@@ -379,7 +423,7 @@ class CustOMICS(nn.Module):
             plt.show()
 
 
-    def explain(self, sample_id, omics_df, clinical_df, source, subtype, device='cpu'):
+    def explain(self, sample_id, omics_df, clinical_df, source, subtype,label='PAM50', device='cpu', show=False):
         """
         :param sample_id: List of samplesid to consider for explanation.
         :param vae_model: The CustOmics model to explain, the output should be a 1xn_class tensor.
@@ -397,7 +441,7 @@ class CustOMICS(nn.Module):
         sample_id = list(set(sample_id).intersection(set(expr_df.index)))
         phenotype = processPhenotypeDataForSamples(clinical_df, sample_id, self.label_encoder)
 
-        conditionaltumour=phenotype.loc[:, 'PAM50'] == subtype
+        conditionaltumour=phenotype.loc[:, label] == subtype
 
         
         expr_df = expr_df.loc[sample_id,:]
@@ -413,20 +457,40 @@ class CustOMICS(nn.Module):
 
         shap.summary_plot(shap_values_female[0],features=tumour_expr,feature_names=list(tumour_expr.columns), show=False, plot_type="violin", max_display=10, plot_size=[4,6])
         plt.savefig('shap_{}_{}.png'.format(source, subtype), bbox_inches='tight')
+        if show:
+            plt.show()
         plt.clf()
+
+    def plot_loss(self):
+        n_epochs = len(self.history)
+        plt.title('Evolution of the loss function with respect to the epochs')
+        plt.vlines(x=self.switch_epoch, ymin=0, ymax=2.5, colors='purple', ls='--', lw=2, label='phase 2 switch')
+        plt.plot(range(0, n_epochs), [loss[0] for loss in self.history], label = 'train loss')
+        plt.plot(range(0, n_epochs), [loss[1] for loss in self.history], label = 'val loss')
+        plt.xlabel('epochs')
+        plt.ylabel('loss')
+        plt.legend()
+        plt.show()
 
     def print_parameters(self):
         lt_params = []
         lt_names = []
         for autoencoder in self.autoencoders:
             for name, param in autoencoder.named_parameters():
-                lt_params.appand(param.data)
+                lt_params.append(param.data)
                 lt_names.append(name)
         for name, param in self.central_layer.named_parameters():
             lt_params.append(param.data)
             lt_names.append(name)
         print(len(lt_params))
-        print(lt_names)
+
+    def get_number_parameters(self):
+        sum_params = 0
+        for autoencoder in self.autoencoders:
+            sum_params += sum(p.numel() for p in autoencoder.parameters() if p.requires_grad)
+        sum_params += sum(p.numel() for p in self.central_layer.parameters() if p.requires_grad)
+        return sum_params
+
 
     def train_all(self):
         for encoder, decoder in zip(self.lt_encoders, self.lt_decoders):

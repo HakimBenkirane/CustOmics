@@ -35,8 +35,6 @@ def booleanConditional(sampleOne, sampleTwo, sampleThree, sampleFour, sampleFive
 
 def randomTrainingSample(expr,sampleSize):
     randomTrainingSampleexpr = expr.sample(n=sampleSize, axis=0)
-    print("Random Training Sample ")
-    print(randomTrainingSampleexpr)
     return randomTrainingSampleexpr
 
 
@@ -44,10 +42,6 @@ def randomTrainingSample(expr,sampleSize):
 
 def splitExprandSample(condition, sampleSize, expr):
     expr_df_T = expr
-    print("Expr Dataframe")
-    print(expr_df_T)
-    print("Condition")
-    print(condition)
     split_expr = expr_df_T[condition]
     split_expr = split_expr.sample(n=sampleSize, axis=0)
     return split_expr
@@ -63,8 +57,6 @@ def splitForGenders(sample_id):
 def printConditionalSelection(conditional,label_array):
     malecounts = label_array[conditional]
     unique, counts = np.unique(malecounts.iloc[:, 0], return_counts=True)
-    print("male sample id counts")
-    print(np.asarray((unique, counts)).T)
 
 
 

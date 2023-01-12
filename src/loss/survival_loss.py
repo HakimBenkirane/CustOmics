@@ -3,7 +3,7 @@ import torch
 import torch.nn as nn
 
 
-def CoxLoss(survtime, censor, hazard_pred, device, loss='deepsurv', model=None, l2_reg=1e-2):
+def CoxLoss(survtime, censor, hazard_pred, device, loss='cox-nnet', model=None, l2_reg=1e-2):
     # This calculation credit to Travers Ching https://github.com/traversc/cox-nnet
     # Cox-nnet: An artificial neural network method for prognosis prediction of high-throughput omics data
     if loss == 'deepsurv':
