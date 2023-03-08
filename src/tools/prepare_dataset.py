@@ -5,7 +5,7 @@ from src.tools.utils import get_samples, get_sub_omics_df, read_data, save_split
 from src.datasets.multi_omics_dataset import MultiOmicsDataset
 
 
-def prepare_dataset(cohort, sources, n_split, save_split=True, ruche=False):
+def prepare_dataset(cohort, sources, n_split, save_split=True, ruche=False, label='PAM50'):
     if cohort == 'PANCAN':
         omics_df, clinical_df, data_y, lt_samples = read_data_pancan(sources)
         data_y = extract_tumour_type(data_y)
@@ -15,9 +15,9 @@ def prepare_dataset(cohort, sources, n_split, save_split=True, ruche=False):
         ohe = OneHotEncoder(sparse=False).fit(clinical_df.loc[:, 'tumor_type'].values.reshape(-1,1))
     else:
         if cohort == 'TCGA-BRCA':
-            omics_df, clinical_df , lt_samples = read_data(cohort, sources)
+            omics_df, clinical_df , lt_samples = read_data(cohort, sources, label)
         else:
-            omics_df, clinical_df , lt_samples = read_data(cohort, sources)
+            omics_df, clinical_df , lt_samples = read_data(cohort, sources, label)
             ohe = None
             le = None
     if save_split:

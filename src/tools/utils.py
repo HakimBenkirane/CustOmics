@@ -29,7 +29,7 @@ def get_sub_omics_df(omics_df, lt_samples):
     return {key: value.loc[lt_samples, :] for key, value in omics_df.items()}
 
 
-def read_data(cohort, omic_sources):
+def read_data(cohort, omic_sources, label):
     omics_df = {}
     cnv_path = '../TCGA/{}/Omics/CNV/{}.gistic.tsv'.format(cohort,cohort)
     rna_path = '../TCGA/{}/Omics/RNAseq/{}.htseq_fpkm.tsv'.format(cohort,cohort)
@@ -44,7 +44,7 @@ def read_data(cohort, omic_sources):
     clinical_df = pd.read_csv(clinical_path, sep='\t', index_col=0).T
     clinical_df = clinical_df[clinical_df['overall_survival'].notna()]
     if cohort == 'TCGA-BRCA':
-        clinical_df = clinical_df[clinical_df['PAM50'].notna()]
+        clinical_df = clinical_df[clinical_df[label].notna()]
     lt_samples = get_common_samples([df for df in omics_df.values()] + [clinical_df])
     for source in omics_df.keys():
         omics_df[source] = omics_df[source].loc[lt_samples, :]

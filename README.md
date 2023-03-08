@@ -52,4 +52,21 @@ This source code is licensed under the [MIT](https://github.com/HakimBenkirane/C
 
 # Cite us
 
-Our paper is not published yet. Meanwhile, you can [read our preprint or arXiv](https://arxiv.org/abs/2209.05485).
+
+## Citation
+If you use this code in your research, please cite our paper.
+```bibtex
+@article{benkirane2023,
+    doi = {10.1371/journal.pcbi.1010921},
+    author = {Benkirane, Hakim AND Pradat, Yoann AND Michiels, Stefan AND Cournède, Paul-Henry},
+    journal = {PLOS Computational Biology},
+    publisher = {Public Library of Science},
+    title = {CustOmics: A versatile deep-learning based strategy for multi-omics integration},
+    year = {2023},
+    month = {03},
+    volume = {19},
+    url = {https://doi.org/10.1371/journal.pcbi.1010921},
+    pages = {1-19},
+    number = {3}
+}
+```

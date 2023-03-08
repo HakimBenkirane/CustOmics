@@ -56,18 +56,12 @@ class CustOMICS(nn.Module):
         """
         Construct the whole architecture with intermediate autoencoders, central layer and eventually downstream predictors
         Parameters:
-            n_source (int)            -- the number of sources to consider in input
-            lt_encoders (list)        -- list of encoders leading from the input to the central layer's input
-            lt_decoders (list)        -- list of decoders leading from the central layer's output to the model's output
-            central_encoder (encoder) -- the encoder of the central layer
-            central_decoder (encoder) -- the decoder of the central layer
+            source_params (dict)      -- parameters related to the different sources to integrate
+            central_params (dict)     -- parameters of the central autoencoder
+            classif_params (dict)     -- classifier parameters
+            surv_params (dict)        -- parameters of the survival network
+            train_params (dict)       -- training hyperparameters
             device (pytorch)          -- the device in which the computation is done
-            beta (float)              -- the beta parameter of the VAE's regularization loss
-            lr (float)                -- the learning rate for the optimizer
-            predictor (Module)        -- the predictor for the eventual downstream task (if None, unsupervised setting)
-            task (string)             -- downstream task to perform (if None, unsupervised setting)
-            consensus (boolean)       -- parameter for the consensus loss
-            variational (boolean)     -- whether or not to consider variational inference in intermediate autoencoders
         """
         super(CustOMICS, self).__init__()
         self.n_source = len(list(source_params.keys()))
@@ -109,6 +103,11 @@ class CustOMICS(nn.Module):
         self.one_hot_encoder = None
 
     def _get_optimizer(self, lr):
+        """
+        Initilizes the optimizer
+        Parameters:
+            lr (float)      -- learning rate for the CustOmics network
+        """
         lt_params = []
         for autoencoder in self.autoencoders:
             lt_params += list(autoencoder.parameters())
@@ -119,18 +118,32 @@ class CustOMICS(nn.Module):
         return optimizer
 
     def _set_autoencoders(self):
+        """
+        Initializes the autoencoders
+        """
         for i in range(self.n_source):
             self.autoencoders.append(AutoEncoder(self.lt_encoders[i], self.lt_decoders[i], self.device))
 
     def _set_central_layer(self):
+        """
+        Initializes the central variational autoencoder
+        """
         self.central_layer = VAE(self.central_encoder, self.central_decoder, self.device)
 
     def _relocate(self):
+        """
+        Relocates the network to specified device
+        """
         for i in range(self.n_source):
             self.autoencoders[i].to(self.device)
         self.central_layer.to(self.device)
 
     def _switch_phase(self, epoch):
+        """
+        Switches phases during training
+        Parameters:
+            epoch (int)      -- epoch starting which to switch phases
+        """
         if epoch < self.switch_epoch:
             self.phase = 1
         else:
