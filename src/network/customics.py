@@ -261,7 +261,7 @@ class CustOMICS(nn.Module):
                 self.optimizer.step()
             average_loss_train = overall_loss / ((batch_idx+1)*batch_size)
             overall_loss = 0
-            if val_loader != None:
+            if omics_val != None:
                 for batch_idx, (x,labels, os_time,os_event) in enumerate(val_loader):
                     self.eval_all()
                     loss_val = self._train_loop(x, labels, os_time,os_event)
