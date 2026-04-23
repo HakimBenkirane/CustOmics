@@ -1,1 +1,0 @@
-- [customics package refactor complete](project_state.md) — v0.1.0 PyPI-ready, bc_multiomics env, 54 passing tests

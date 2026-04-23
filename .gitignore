@@ -129,3 +129,12 @@ dmypy.json
 .pyre/
 
 *.png
+
+# Claude Code
+.claude/
+
+# GitHub Actions
+.github/
+
+# Results / outputs
+results/
