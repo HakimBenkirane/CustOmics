@@ -1,64 +1,142 @@
+"""Legacy CLI entry point — use the ``customics`` command or Python API instead.
+
+This script is kept for backwards compatibility.  For new usage, prefer:
+
+    customics --help
+
+or the Python API documented in README.md.
+"""
+
 import argparse
-import torch
+import sys
 
 import numpy as np
+import torch
 
-from src.tools.core_utils import train
-
-
-parser = argparse.ArgumentParser()
-parser.add_argument('-c', '--cohorts', help='list of cohorts to process', type=str)
-parser.add_argument('-dv', '--device', help='torch device in which the computations will be done', type=str, default='cpu')
-parser.add_argument('-dr', '--data_directory', help='folder in which the data are stored', type=str, default='../TCGA/')
-parser.add_argument('-res', '--result_directory', help='folder in which the results should be stored', type=str, default='results/')
-parser.add_argument('-t', '--task', help='task to perform', type=str, choices=['classification', 'survival'], default='classification')
-parser.add_argument('-src', '--sources', help='list of sources to integrate', type=str, default='CNV,RNAseq,methyl')
+from customics import CustOMICS
+from customics.tools.utils import get_common_samples, get_sub_omics_df, save_splits, get_splits
 
 
-parser.add_argument('-nc', '--num_classes', help='number of classes for the classification task', type=int, default=4)
-parser.add_argument('-b', '--batch_size', help='batch size for the data loader', type=int, default=32)
-parser.add_argument('-e', '--epochs', help='number of training epochs', type=int, default=20)
-parser.add_argument('-p2', '--p2_switch', help='epoch to switch to phase 2', type=int, default=10)
-parser.add_argument('-lr', '--lr', help='learning rate for the training optimizer', type=int, default=1e-3)
-parser.add_argument('-bt', '--beta', help='value of the regulation coefficient for the beta-VAE', type=int, default=1)
-parser.add_argument('-dp', '--dropout', help='dropout rate', type=float, default=0.2)
+def _parse_args():
+    parser = argparse.ArgumentParser(
+        description="Train and evaluate a customics multi-omics model."
+    )
+    parser.add_argument("-c", "--cohorts", type=str, required=True)
+    parser.add_argument("-dv", "--device", type=str, default="cpu")
+    parser.add_argument("-dr", "--data_directory", type=str, default="data/")
+    parser.add_argument("-res", "--result_directory", type=str, default="results/")
+    parser.add_argument("-t", "--task", type=str,
+                        choices=["classification", "survival"], default="classification")
+    parser.add_argument("-src", "--sources", type=str, default="CNV,RNAseq,methyl")
+    parser.add_argument("-nc", "--num_classes", type=int, default=4)
+    parser.add_argument("-b", "--batch_size", type=int, default=32)
+    parser.add_argument("-e", "--epochs", type=int, default=20)
+    parser.add_argument("-p2", "--p2_switch", type=int, default=10)
+    parser.add_argument("-lr", "--lr", type=float, default=1e-3)
+    parser.add_argument("-bt", "--beta", type=float, default=1.0)
+    parser.add_argument("-dp", "--dropout", type=float, default=0.2)
+    parser.add_argument("-hd", "--hidden_dim", type=str, default="512,256")
+    parser.add_argument("-ct", "--central_dim", type=str, default="512,256")
+    parser.add_argument("-lt", "--latent_dim", type=int, default=128)
+    parser.add_argument("-ch", "--classifier_dim", type=str, default="128,64")
+    parser.add_argument("-sh", "--survival_dim", type=str, default="64,32")
+    parser.add_argument("-lc", "--lambda_classif", type=float, default=5.0)
+    parser.add_argument("-ls", "--lambda_survival", type=float, default=1.0)
+    return parser.parse_args()
 
 
-parser.add_argument('-hd', '--hidden_dim', help='list of neurones for the hidden layers of the intermediate autoencoders', type=str, default='1024,512,256')
-parser.add_argument('-ct', '--central_dim', help='list of neurones for the hidden layers of the central autoencoder', type=str, default='2048,1024,512,256')
-parser.add_argument('-lt', '--latent_dim', help='size of the latent vector', type=int, default=128)
+def train(args, device, sources, hidden_dim, central_dim, classifier_dim, survival_dim):
+    """Run 5-fold cross-validation for the given cohort and task."""
+    import pandas as pd
+    import os
 
-parser.add_argument('-ch', '--classifier_dim', help='list of neurones for the classifier hidden layers', type=str, default='256,128')
-parser.add_argument('-sh', '--survival_dim', help='list of neurones for the survival hidden layers', type=str, default='64,32')
-parser.add_argument('-lc', '--lambda_classif', help='weight of the classification loss', type=float, default=5)
-parser.add_argument('-ls', '--lambda_survival', help='weight of the survival loss', type=float, default=0)
+    data_dir = args.data_directory
+    label_col = "PAM50" if args.cohorts == "TCGA-BRCA" else "tumor_type"
+    event_col = "OS"
+    surv_time_col = "OS.time"
 
-parser.add_argument('-xp', '--explain', help='choose if you want to explain the results or not', type=bool, default=False)
-parser.add_argument('-cxp', '--explained_class', help='class to explain', type=str, default='Her2')
-parser.add_argument('-sxp', '--explained_source', help='source to explain', type=str, default='RNAseq')
+    # Load omics data — adjust paths to match your local directory layout
+    omics_df = {}
+    for source in sources:
+        path = os.path.join(data_dir, args.cohorts, f"{source}.tsv")
+        if os.path.exists(path):
+            omics_df[source] = pd.read_csv(path, sep="\t", index_col=0)
+        else:
+            raise FileNotFoundError(
+                f"Expected omics file not found: {path}\n"
+                "Please organise your data as data/<cohort>/<source>.tsv"
+            )
 
-args = parser.parse_args()
+    clinical_path = os.path.join(data_dir, args.cohorts, "clinical.tsv")
+    clinical_df = pd.read_csv(clinical_path, sep="\t", index_col=0)
 
-if args.device != 'cpu':
-    cuda = torch.cuda.is_available()
-    device = torch.device("cuda" if cuda else "cpu")
-else:
-    device = torch.device("cpu")
+    lt_samples = get_common_samples(list(omics_df.values()) + [clinical_df])
+    save_splits(lt_samples, args.cohorts)
 
-sources = args.sources.split(',')
-hidden_dim = [int(element) for element in args.hidden_dim.split(',')]
-central_dim = [int(element) for element in args.central_dim.split(',')]
-classifier_dim = [int(element) for element in args.classifier_dim.split(',')]
-survival_dim = [int(element) for element in args.survival_dim.split(',')]
+    x_dim = [omics_df[s].shape[1] for s in sources]
+    num_classes = clinical_df[label_col].nunique()
+
+    source_params = {
+        s: {"input_dim": d, "hidden_dim": hidden_dim, "latent_dim": args.latent_dim,
+            "norm": True, "dropout": args.dropout}
+        for s, d in zip(sources, x_dim)
+    }
+    central_params = {
+        "hidden_dim": central_dim, "latent_dim": args.latent_dim,
+        "norm": True, "dropout": args.dropout, "beta": args.beta,
+    }
+    classif_params = {
+        "n_class": num_classes, "lambda": args.lambda_classif,
+        "hidden_layers": classifier_dim, "dropout": args.dropout,
+    }
+    surv_params = {
+        "lambda": args.lambda_survival, "dims": survival_dim,
+        "activation": "SELU", "l2_reg": 1e-2,
+        "norm": True, "dropout": args.dropout,
+    }
+    train_params = {"switch": args.p2_switch, "lr": args.lr}
+
+    metrics = []
+    for split in range(1, 6):
+        samples_train, samples_val, samples_test = get_splits(args.cohorts, split)
+        omics_train = get_sub_omics_df(omics_df, samples_train)
+        omics_val = get_sub_omics_df(omics_df, samples_val)
+        omics_test = get_sub_omics_df(omics_df, samples_test)
+
+        model = CustOMICS(
+            source_params=source_params, central_params=central_params,
+            classif_params=classif_params, surv_params=surv_params,
+            train_params=train_params, device=device,
+        )
+        model.fit(
+            omics_train=omics_train, clinical_df=clinical_df,
+            label=label_col, event=event_col, surv_time=surv_time_col,
+            omics_val=omics_val, batch_size=args.batch_size,
+            n_epochs=args.epochs, verbose=True,
+        )
+        metric = model.evaluate(
+            omics_test=omics_test, clinical_df=clinical_df,
+            label=label_col, event=event_col, surv_time=surv_time_col,
+            task=args.task, batch_size=1024,
+        )
+        metrics.append(metric)
+        print(f"Split {split}: {metric}")
+
+    print(f"\nMean metric: {np.mean(metrics):.4f} ± {np.std(metrics):.4f}")
+    return metrics
+
 
 if __name__ == "__main__":
-    lt_metrics = []
-    for split in range(1, 6):
-        metric = train(args.task, args.cohorts, sources, split, device, num_classes=args.num_classes,
-             batch_size=args.batch_size, n_epochs=args.epochs, beta=args.beta, lr=args.lr,
-            hidden_dim=hidden_dim, central_dim=central_dim, latent_dim=args.latent_dim, dropout=args.dropout,
-            classifier_dim=classifier_dim, survival_dim=survival_dim, lambda_classif=args.lambda_classif, 
-            lambda_survival=args.lambda_survival, explain=args.explain, explained_source=args.explained_source, explained_class=args.explained_class)
-        lt_metrics.append(metric)
-        print(metric)
-    print('C-index : {} +- {}'.format(np.mean(lt_metrics), np.std(lt_metrics)))
+    args = _parse_args()
+    device = (
+        torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        if args.device != "cpu"
+        else torch.device("cpu")
+    )
+    sources = args.sources.split(",")
+    hidden_dim = [int(x) for x in args.hidden_dim.split(",")]
+    central_dim = [int(x) for x in args.central_dim.split(",")]
+    classifier_dim = [int(x) for x in args.classifier_dim.split(",")]
+    survival_dim = [int(x) for x in args.survival_dim.split(",")]
+
+    train(args, device, sources, hidden_dim, central_dim, classifier_dim, survival_dim)
