@@ -5,7 +5,6 @@ from __future__ import annotations
 import argparse
 import sys
 
-import numpy as np
 import torch
 
 
@@ -79,10 +78,6 @@ def main() -> None:
         device = torch.device("cpu")
 
     sources = args.sources.split(",")
-    hidden_dim = [int(x) for x in args.hidden_dim.split(",")]
-    central_dim = [int(x) for x in args.central_dim.split(",")]
-    classifier_dim = [int(x) for x in args.classifier_dim.split(",")]
-    survival_dim = [int(x) for x in args.survival_dim.split(",")]
 
     print(
         f"customics v0.1.0 — task={args.task}, cohort={args.cohorts}, "
