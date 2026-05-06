@@ -8,7 +8,6 @@ or the Python API documented in README.md.
 """
 
 import argparse
-import sys
 
 import numpy as np
 import torch

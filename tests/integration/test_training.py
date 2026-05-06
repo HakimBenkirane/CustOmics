@@ -1,7 +1,6 @@
 """Integration test: full fit → evaluate pipeline on synthetic toy data."""
 
 import numpy as np
-import pytest
 import torch
 
 from customics import CustOMICS

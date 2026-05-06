@@ -1,6 +1,5 @@
 """Unit tests for MultiOmicsDataset."""
 
-import pytest
 import torch
 
 from customics.datasets.multi_omics_dataset import MultiOmicsDataset

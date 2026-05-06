@@ -7,10 +7,8 @@ from typing import List
 
 import torch
 import torch.nn as nn
-from torch.optim import Adam
 
 from customics.tools.net_utils import FullyConnectedLayer
-from customics.loss.classification_loss import classification_loss
 
 
 class MultiClassifier(nn.Module):
