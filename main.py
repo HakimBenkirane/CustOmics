@@ -14,7 +14,12 @@ import numpy as np
 import torch
 
 from customics import CustOMICS
-from customics.tools.utils import get_common_samples, get_sub_omics_df, save_splits, get_splits
+from customics.tools.utils import (
+    get_common_samples,
+    get_sub_omics_df,
+    save_splits,
+    get_splits,
+)
 
 
 def _parse_args():
@@ -25,8 +30,13 @@ def _parse_args():
     parser.add_argument("-dv", "--device", type=str, default="cpu")
     parser.add_argument("-dr", "--data_directory", type=str, default="data/")
     parser.add_argument("-res", "--result_directory", type=str, default="results/")
-    parser.add_argument("-t", "--task", type=str,
-                        choices=["classification", "survival"], default="classification")
+    parser.add_argument(
+        "-t",
+        "--task",
+        type=str,
+        choices=["classification", "survival"],
+        default="classification",
+    )
     parser.add_argument("-src", "--sources", type=str, default="CNV,RNAseq,methyl")
     parser.add_argument("-nc", "--num_classes", type=int, default=4)
     parser.add_argument("-b", "--batch_size", type=int, default=32)
@@ -77,22 +87,35 @@ def train(args, device, sources, hidden_dim, central_dim, classifier_dim, surviv
     num_classes = clinical_df[label_col].nunique()
 
     source_params = {
-        s: {"input_dim": d, "hidden_dim": hidden_dim, "latent_dim": args.latent_dim,
-            "norm": True, "dropout": args.dropout}
+        s: {
+            "input_dim": d,
+            "hidden_dim": hidden_dim,
+            "latent_dim": args.latent_dim,
+            "norm": True,
+            "dropout": args.dropout,
+        }
         for s, d in zip(sources, x_dim)
     }
     central_params = {
-        "hidden_dim": central_dim, "latent_dim": args.latent_dim,
-        "norm": True, "dropout": args.dropout, "beta": args.beta,
+        "hidden_dim": central_dim,
+        "latent_dim": args.latent_dim,
+        "norm": True,
+        "dropout": args.dropout,
+        "beta": args.beta,
     }
     classif_params = {
-        "n_class": num_classes, "lambda": args.lambda_classif,
-        "hidden_layers": classifier_dim, "dropout": args.dropout,
+        "n_class": num_classes,
+        "lambda": args.lambda_classif,
+        "hidden_layers": classifier_dim,
+        "dropout": args.dropout,
     }
     surv_params = {
-        "lambda": args.lambda_survival, "dims": survival_dim,
-        "activation": "SELU", "l2_reg": 1e-2,
-        "norm": True, "dropout": args.dropout,
+        "lambda": args.lambda_survival,
+        "dims": survival_dim,
+        "activation": "SELU",
+        "l2_reg": 1e-2,
+        "norm": True,
+        "dropout": args.dropout,
     }
     train_params = {"switch": args.p2_switch, "lr": args.lr}
 
@@ -104,20 +127,32 @@ def train(args, device, sources, hidden_dim, central_dim, classifier_dim, surviv
         omics_test = get_sub_omics_df(omics_df, samples_test)
 
         model = CustOMICS(
-            source_params=source_params, central_params=central_params,
-            classif_params=classif_params, surv_params=surv_params,
-            train_params=train_params, device=device,
+            source_params=source_params,
+            central_params=central_params,
+            classif_params=classif_params,
+            surv_params=surv_params,
+            train_params=train_params,
+            device=device,
         )
         model.fit(
-            omics_train=omics_train, clinical_df=clinical_df,
-            label=label_col, event=event_col, surv_time=surv_time_col,
-            omics_val=omics_val, batch_size=args.batch_size,
-            n_epochs=args.epochs, verbose=True,
+            omics_train=omics_train,
+            clinical_df=clinical_df,
+            label=label_col,
+            event=event_col,
+            surv_time=surv_time_col,
+            omics_val=omics_val,
+            batch_size=args.batch_size,
+            n_epochs=args.epochs,
+            verbose=True,
         )
         metric = model.evaluate(
-            omics_test=omics_test, clinical_df=clinical_df,
-            label=label_col, event=event_col, surv_time=surv_time_col,
-            task=args.task, batch_size=1024,
+            omics_test=omics_test,
+            clinical_df=clinical_df,
+            label=label_col,
+            event=event_col,
+            surv_time=surv_time_col,
+            task=args.task,
+            batch_size=1024,
         )
         metrics.append(metric)
         print(f"Split {split}: {metric}")

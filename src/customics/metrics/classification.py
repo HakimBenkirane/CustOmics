@@ -130,7 +130,9 @@ def plot_roc_multiclass(
         fpr, tpr, _ = roc_curve((y_test == i).astype(int), y_pred_proba[:, i])
         roc_auc = auc(fpr, tpr)
         color = colors[i % len(colors)]
-        plt.plot(fpr, tpr, color=color, lw=1, label=f"{var_names[i]} (AUC={roc_auc:.2f})")
+        plt.plot(
+            fpr, tpr, color=color, lw=1, label=f"{var_names[i]} (AUC={roc_auc:.2f})"
+        )
 
     plt.plot([0, 1], [0, 1], "k--", lw=2, label="random")
     plt.xlim([0.0, 1.0])

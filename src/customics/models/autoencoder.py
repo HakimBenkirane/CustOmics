@@ -24,7 +24,9 @@ class AutoEncoder(nn.Module):
         Compute device.
     """
 
-    def __init__(self, encoder: Encoder, decoder: Decoder, device: torch.device) -> None:
+    def __init__(
+        self, encoder: Encoder, decoder: Decoder, device: torch.device
+    ) -> None:
         super().__init__()
         self.encoder = encoder
         self.decoder = decoder

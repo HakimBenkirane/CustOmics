@@ -41,4 +41,8 @@ def compute_mmd(x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
     torch.Tensor
         Scalar MMD value.
     """
-    return compute_kernel(x, x).mean() + compute_kernel(y, y).mean() - 2 * compute_kernel(x, y).mean()
+    return (
+        compute_kernel(x, x).mean()
+        + compute_kernel(y, y).mean()
+        - 2 * compute_kernel(x, y).mean()
+    )

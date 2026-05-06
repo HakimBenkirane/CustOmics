@@ -96,13 +96,17 @@ class TestVAE:
 
 class TestSurvivalNet:
     def test_output_shape(self):
-        net = SurvivalNet({"dims": [16, 8, 1], "drop": 0.1, "norm": False, "activation": "SELU"})
+        net = SurvivalNet(
+            {"dims": [16, 8, 1], "drop": 0.1, "norm": False, "activation": "SELU"}
+        )
         out = net(torch.randn(BATCH, 16))
         assert out.shape == (BATCH, 1)
 
     def test_invalid_activation_raises(self):
         with pytest.raises(ConfigurationError, match="Unsupported activation"):
-            SurvivalNet({"dims": [16, 1], "drop": 0.0, "norm": False, "activation": "invalid"})
+            SurvivalNet(
+                {"dims": [16, 1], "drop": 0.0, "norm": False, "activation": "invalid"}
+            )
 
 
 class TestMultiClassifier:

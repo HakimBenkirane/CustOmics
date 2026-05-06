@@ -16,9 +16,7 @@ class TestClassificationMetrics:
         self.y_pred = rng.integers(0, n_class, n)
         # Perfectly calibrated probabilities for each true class
         self.y_proba = rng.dirichlet(np.ones(n_class), size=n)
-        self.ohe = OneHotEncoder(sparse_output=False).fit(
-            self.y_true.reshape(-1, 1)
-        )
+        self.ohe = OneHotEncoder(sparse_output=False).fit(self.y_true.reshape(-1, 1))
 
     def test_returns_all_keys(self):
         scores = multi_classification_evaluation(

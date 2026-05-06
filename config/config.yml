@@ -6,7 +6,7 @@ general:
     task: classification
     sources: ['CNV', 'RNAseq', 'methyl']
 training_hyperparameters:
-    num_classes: 4 
+    num_classes: 4
     batch_size: 32
     epochs: 10
     p2_switch: 5

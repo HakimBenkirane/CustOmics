@@ -52,20 +52,30 @@ class MultiClassifier(nn.Module):
 
         layers: OrderedDict[str, nn.Module] = OrderedDict()
         layers["InputLayer"] = FullyConnectedLayer(
-            latent_dim, class_dim[0],
-            norm_layer=norm_layer, leaky_slope=leaky_slope,
-            dropout=dropout, activation=True,
+            latent_dim,
+            class_dim[0],
+            norm_layer=norm_layer,
+            leaky_slope=leaky_slope,
+            dropout=dropout,
+            activation=True,
         )
         for i in range(1, len(class_dim)):
             layers[f"Layer{i}"] = FullyConnectedLayer(
-                class_dim[i - 1], class_dim[i],
-                norm_layer=norm_layer, leaky_slope=leaky_slope,
-                dropout=dropout if i % 2 == 1 else 0.0, activation=True,
+                class_dim[i - 1],
+                class_dim[i],
+                norm_layer=norm_layer,
+                leaky_slope=leaky_slope,
+                dropout=dropout if i % 2 == 1 else 0.0,
+                activation=True,
             )
         layers["OutputLayer"] = FullyConnectedLayer(
-            class_dim[-1], n_class,
-            norm_layer=norm_layer, leaky_slope=leaky_slope,
-            dropout=0.0, activation=False, normalization=False,
+            class_dim[-1],
+            n_class,
+            norm_layer=norm_layer,
+            leaky_slope=leaky_slope,
+            dropout=0.0,
+            activation=False,
+            normalization=False,
         )
         self.net = nn.Sequential(layers)
 

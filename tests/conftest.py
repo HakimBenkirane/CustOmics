@@ -26,14 +26,18 @@ def sample_ids():
 def rna_df(sample_ids):
     rng = np.random.default_rng(42)
     data = rng.random((N_SAMPLES, N_FEATURES_RNA)).astype(np.float32)
-    return pd.DataFrame(data, index=sample_ids, columns=[f"gene_{i}" for i in range(N_FEATURES_RNA)])
+    return pd.DataFrame(
+        data, index=sample_ids, columns=[f"gene_{i}" for i in range(N_FEATURES_RNA)]
+    )
 
 
 @pytest.fixture(scope="session")
 def cnv_df(sample_ids):
     rng = np.random.default_rng(43)
     data = rng.random((N_SAMPLES, N_FEATURES_CNV)).astype(np.float32)
-    return pd.DataFrame(data, index=sample_ids, columns=[f"cnv_{i}" for i in range(N_FEATURES_CNV)])
+    return pd.DataFrame(
+        data, index=sample_ids, columns=[f"cnv_{i}" for i in range(N_FEATURES_CNV)]
+    )
 
 
 @pytest.fixture(scope="session")
@@ -121,8 +125,14 @@ def device():
 
 @pytest.fixture(scope="session")
 def fitted_model(
-    source_params, central_params, classif_params, surv_params, train_params,
-    device, omics_df, clinical_df,
+    source_params,
+    central_params,
+    classif_params,
+    surv_params,
+    train_params,
+    device,
+    omics_df,
+    clinical_df,
 ):
     from customics import CustOMICS
 

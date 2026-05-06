@@ -58,9 +58,7 @@ class MultiOmicsDataset(Dataset):
     def __len__(self) -> int:
         return len(self.lt_samples)
 
-    def __getitem__(
-        self, index: int
-    ) -> Tuple[List[torch.Tensor], int, int, int]:
+    def __getitem__(self, index: int) -> Tuple[List[torch.Tensor], int, int, int]:
         sample = self.lt_samples[index]
         omics_data = [
             torch.tensor(df.loc[sample, :].values.astype(np.float32))

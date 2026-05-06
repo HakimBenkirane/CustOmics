@@ -44,20 +44,30 @@ class Decoder(nn.Module):
         rev = list(reversed(hidden_dim))
         layers: OrderedDict[str, nn.Module] = OrderedDict()
         layers["InputLayer"] = FullyConnectedLayer(
-            latent_dim, rev[0],
-            norm_layer=norm_layer, leaky_slope=leaky_slope,
-            dropout=dropout, activation=True,
+            latent_dim,
+            rev[0],
+            norm_layer=norm_layer,
+            leaky_slope=leaky_slope,
+            dropout=dropout,
+            activation=True,
         )
         for i in range(1, len(rev)):
             layers[f"Layer{i}"] = FullyConnectedLayer(
-                rev[i - 1], rev[i],
-                norm_layer=norm_layer, leaky_slope=leaky_slope,
-                dropout=dropout if i % 2 == 0 else 0.0, activation=True,
+                rev[i - 1],
+                rev[i],
+                norm_layer=norm_layer,
+                leaky_slope=leaky_slope,
+                dropout=dropout if i % 2 == 0 else 0.0,
+                activation=True,
             )
         layers["OutputLayer"] = FullyConnectedLayer(
-            rev[-1], output_dim,
-            norm_layer=norm_layer, leaky_slope=leaky_slope,
-            dropout=0.0, activation=False, normalization=False,
+            rev[-1],
+            output_dim,
+            norm_layer=norm_layer,
+            leaky_slope=leaky_slope,
+            dropout=0.0,
+            activation=False,
+            normalization=False,
         )
         self.net = nn.Sequential(layers)
 

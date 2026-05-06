@@ -25,7 +25,7 @@
                     └──────────────────────────────┘
 ```
 
-**Phase 1** trains per-source autoencoders jointly with the task heads.  
+**Phase 1** trains per-source autoencoders jointly with the task heads.
 **Phase 2** additionally trains the central VAE to consolidate the integrated representation.
 
 ---
