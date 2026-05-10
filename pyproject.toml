@@ -66,3 +66,9 @@ addopts = "--tb=short -q"
 [tool.coverage.run]
 source = ["customics"]
 omit = ["tests/*"]
+
+[tool.poe.tasks]
+docs = "mkdocs serve"
+pre-commit = "pre-commit run --all-files"
+test = "pytest --cov --cov-config=pyproject.toml --cov-report=html --disable-warnings"
+test_no_multimodal = "pytest -m 'not multimodal' --cov --cov-config=pyproject.toml --cov-report=html --disable-warnings"
