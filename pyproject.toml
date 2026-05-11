@@ -35,7 +35,8 @@ dependencies = [
     "seaborn>=0.12.0",
     "scipy>=1.11.0",
     "pyyaml>=6.0",
-    "shap>=0.43.0",
+    "numba>=0.60,<0.62",
+    "shap>=0.51,<0.52",
 ]
 
 [project.optional-dependencies]
