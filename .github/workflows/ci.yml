@@ -69,7 +69,7 @@ jobs:
         run: uv sync --dev
 
       - name: Build documentation
-        run: zensical build --clean
+        run: uv run zensical build --clean
       - uses: actions/upload-pages-artifact@v5
         with:
           path: site
