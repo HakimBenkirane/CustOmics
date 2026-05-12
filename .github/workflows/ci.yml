@@ -64,6 +64,7 @@ jobs:
     needs: [tests, test_pip_install]
     name: "Deploy documentation"
     runs-on: ubuntu-latest
+    environment: github-pages
     steps:
       - uses: actions/checkout@v5
 
