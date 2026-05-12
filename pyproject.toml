@@ -42,8 +42,12 @@ dependencies = [
 [project.optional-dependencies]
 [dependency-groups]
 dev = [
+    "mkdocs-autorefs>=1.4.4",
+    "mkdocstrings>=1.0.4",
+    "mkdocstrings-python>=2.0.3",
     "pytest>=7.4.0",
     "pytest-cov>=4.1.0",
+    "zensical>=0.0.41",
 ]
 
 [project.urls]
