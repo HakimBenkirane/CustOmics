@@ -86,3 +86,22 @@ jobs:
         id: deployment
         with:
           artifact_name: github-pages-${{ github.run_id }}
+
+  pypi-release:
+      needs: [tests, test_pip_install]
+      name: "TestPyPI release"
+      runs-on: ubuntu-latest
+
+      steps:
+        - uses: actions/checkout@v4
+
+        - name: Set up the environment
+          uses: ./.github/actions/setup-python-env
+
+        - name: Build
+          run: uv build
+
+        - name: Publish to TestPyPI
+          run: uv publish \
+            --publish-url https://test.pypi.org/legacy/ \
+            -t ${{ secrets.TEST_PYPI_TOKEN }}
