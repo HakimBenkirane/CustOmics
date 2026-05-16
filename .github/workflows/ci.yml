@@ -62,6 +62,7 @@ jobs:
 
   deploy-docs:
     needs: [tests, test_pip_install]
+    if: contains(github.ref, 'tags')
     name: "Deploy documentation"
     runs-on: ubuntu-latest
     environment: github-pages
