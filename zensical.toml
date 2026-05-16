@@ -6,6 +6,7 @@ site_url = "https://github.com/HakimBenkirane/CustOmics"
 site_description = "CostOmics Documentation"
 site_author = "Hakim Benkirane"
 copyright = "Copyright &copy; 2026 Hakim Benkirane"
+extra_css = ["stylesheets/notebook-blocks.css"]
 
 
 nav = [
@@ -15,6 +16,9 @@ nav = [
      "api/train.md",
      "api/evaluate.md",
      "api/visualise.md"
+  ]},
+  {"Tutorial"= [
+     "tutorials/example_notebook.md",
   ]},
   {"Cite us" = "citation.md"}
 ]

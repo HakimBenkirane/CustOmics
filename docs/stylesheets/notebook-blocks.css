@@ -1,0 +1,16 @@
+/* Only style Python code inputs; leave outputs unchanged. */
+
+/* .md-typeset div.language-python.highlight pre > code,
+.md-typeset div.language-python.highlight code {
+  background: #d5d5d5 !important;
+} */
+
+.md-typeset div.language-text.highlight pre > code,
+.md-typeset div.language-text.highlight code {
+  background: #fdfdfd !important;
+}
+
+[data-md-color-scheme="slate"] .md-typeset div.language-text.highlight pre > code,
+[data-md-color-scheme="slate"] .md-typeset div.language-text.highlight code {
+  background: #282828 !important;
+}
