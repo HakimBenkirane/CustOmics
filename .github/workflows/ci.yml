@@ -97,11 +97,13 @@ jobs:
 
         - name: Set up the environment
           uses: ./.github/actions/setup-python-env
+          with:
+            python-version: "3.12"
 
         - name: Build
           run: uv build
 
         - name: Publish to TestPyPI
-          run: uv publish \
+          run: uv publish dist/* \
             --publish-url https://test.pypi.org/legacy/ \
             -t ${{ secrets.TEST_PYPI_TOKEN }}
