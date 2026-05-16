@@ -89,6 +89,7 @@ jobs:
 
   pypi-release:
       needs: [tests, test_pip_install]
+      if: contains(github.ref, 'tags')
       name: "TestPyPI release"
       runs-on: ubuntu-latest
 
