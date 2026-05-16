@@ -168,7 +168,7 @@ from customics import DataValidationError, ModelNotFittedError, ConfigurationErr
 
 ## Reproducing Paper Results
 
-Download TCGA data from the [GDC Data Portal](https://portal.gdc.cancer.gov/) or [cBioPortal](https://www.cbioportal.org/). Pre-computed 5-fold CV splits for BRCA, LUAD, UCEC, BLCA, GBM, OV, and PANCAN are included in the `splits/` directory.
+Download TCGA data from the [GDC Data Portal](https://portal.gdc.cancer.gov/) or [cBioPortal](https://www.cbioportal.org/). Pre-computed 5-fold CV splits for BRCA, LUAD, UCEC, BLCA, GBM, OV, and PANCAN are included in the `data/splits/` directory.
 
 See `example_notebook.ipynb` for a complete end-to-end walkthrough using the bundled toy dataset.
 
