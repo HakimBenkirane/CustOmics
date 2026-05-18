@@ -9,3 +9,11 @@ This library has been developed by Hakim Benkirane, Associate Professor in bioma
 
 - [Lab of Mathematics and Computer Science](https://biomathematics.mics.centralesupelec.fr/) (MICS), CentraleSupélec (Engineering School, Paris-Saclay University).
 - PRISM center, [Gustave Roussy Institute](https://www.gustaveroussy.fr/en) (Cancer campus, Paris-Saclay University).
+
+
+<div class="citation-logos">
+  <img src="logos/mics2.png" alt="MICS logo" />
+  <img src="logos/Logo_CentraleSupélec.png" alt="CentraleSupélec logo" />
+  <img src="logos/PRISM.png" alt="PRISM logo" />
+  <img src="logos/Gustave_Roussy.png" alt="Gustave Roussy logo" />
+</div>

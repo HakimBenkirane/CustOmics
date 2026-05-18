@@ -14,3 +14,20 @@
 [data-md-color-scheme="slate"] .md-typeset div.language-text.highlight code {
   background: #282828 !important;
 }
+
+/* Citation page: small horizontal institutional logos */
+.md-typeset .citation-logos {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 30px;
+  flex-wrap: nowrap;
+  margin-top: 62px;
+}
+
+.md-typeset .citation-logos img {
+  height: 42px !important;
+  width: auto !important;
+  max-height: 42px !important;
+  object-fit: contain;
+}
