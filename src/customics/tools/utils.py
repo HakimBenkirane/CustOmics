@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import os
-import pickle
 from typing import Dict, List
 
 import numpy as np
@@ -85,7 +84,11 @@ def save_splits(lt_samples: List[str], cohort: str, split_dir: str = "splits") -
     os.makedirs(out_dir, exist_ok=True)
     for i, (train_idx, test_idx) in enumerate(kf.split(lt_samples), start=1):
         train_idx, val_idx = train_test_split(train_idx, test_size=0.15)
-        for name, indices in [("train", train_idx), ("val", val_idx), ("test", test_idx)]:
+        for name, indices in [
+            ("train", train_idx),
+            ("val", val_idx),
+            ("test", test_idx),
+        ]:
             with open(os.path.join(out_dir, f"split_{name}_{i}.txt"), "w") as f:
                 for idx in indices:
                     f.write(lt_samples[idx] + "\n")

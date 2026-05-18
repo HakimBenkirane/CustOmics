@@ -1,15 +1,20 @@
 """Integration test: full fit → evaluate pipeline on synthetic toy data."""
 
 import numpy as np
-import pytest
 import torch
 
 from customics import CustOMICS
 
 
 def test_full_pipeline_classification(
-    source_params, central_params, classif_params, surv_params, train_params,
-    device, omics_df, clinical_df,
+    source_params,
+    central_params,
+    classif_params,
+    surv_params,
+    train_params,
+    device,
+    omics_df,
+    clinical_df,
 ):
     """Fit a model and evaluate classification — smoke test for the full pipeline."""
     model = CustOMICS(
@@ -50,8 +55,14 @@ def test_full_pipeline_classification(
 
 
 def test_full_pipeline_survival(
-    source_params, central_params, classif_params, surv_params, train_params,
-    device, omics_df, clinical_df,
+    source_params,
+    central_params,
+    classif_params,
+    surv_params,
+    train_params,
+    device,
+    omics_df,
+    clinical_df,
 ):
     """Fit a model and evaluate survival — smoke test for the full pipeline."""
     model = CustOMICS(
@@ -85,8 +96,15 @@ def test_full_pipeline_survival(
 
 
 def test_state_dict_save_load(
-    source_params, central_params, classif_params, surv_params, train_params,
-    device, omics_df, clinical_df, tmp_path,
+    source_params,
+    central_params,
+    classif_params,
+    surv_params,
+    train_params,
+    device,
+    omics_df,
+    clinical_df,
+    tmp_path,
 ):
     """Model weights must be fully recoverable via state_dict (verifies nn.ModuleList fix)."""
     model = CustOMICS(
@@ -97,8 +115,15 @@ def test_state_dict_save_load(
         train_params=train_params,
         device=device,
     )
-    model.fit(omics_df, clinical_df, label="label", event="OS", surv_time="OS.time",
-              n_epochs=2, batch_size=8)
+    model.fit(
+        omics_df,
+        clinical_df,
+        label="label",
+        event="OS",
+        surv_time="OS.time",
+        n_epochs=2,
+        batch_size=8,
+    )
 
     path = tmp_path / "model.pt"
     torch.save(model.state_dict(), path)
@@ -125,8 +150,14 @@ def test_state_dict_save_load(
 
 
 def test_fit_with_validation(
-    source_params, central_params, classif_params, surv_params, train_params,
-    device, omics_df, clinical_df,
+    source_params,
+    central_params,
+    classif_params,
+    surv_params,
+    train_params,
+    device,
+    omics_df,
+    clinical_df,
 ):
     """When omics_val is provided, history should contain (train, val) tuples."""
     model = CustOMICS(

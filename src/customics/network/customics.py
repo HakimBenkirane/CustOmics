@@ -19,10 +19,17 @@ from customics.decoders.decoder import Decoder
 from customics.decoders.probabilistic_decoder import ProbabilisticDecoder
 from customics.encoders.encoder import Encoder
 from customics.encoders.probabilistic_encoder import ProbabilisticEncoder
-from customics.exceptions import ConfigurationError, DataValidationError, ModelNotFittedError
+from customics.exceptions import (
+    ConfigurationError,
+    DataValidationError,
+    ModelNotFittedError,
+)
 from customics.loss.classification_loss import classification_loss
 from customics.loss.survival_loss import CoxLoss
-from customics.metrics.classification import multi_classification_evaluation, plot_roc_multiclass
+from customics.metrics.classification import (
+    multi_classification_evaluation,
+    plot_roc_multiclass,
+)
 from customics.metrics.survival import CIndex_lifeline
 from customics.models.autoencoder import AutoEncoder
 from customics.models.vae import VAE
@@ -115,7 +122,9 @@ class CustOMICS(nn.Module):
         device: torch.device,
     ) -> None:
         super().__init__()
-        self._validate_params(source_params, central_params, classif_params, train_params)
+        self._validate_params(
+            source_params, central_params, classif_params, train_params
+        )
 
         self.device = device
         self.source_names: List[str] = list(source_params.keys())
@@ -238,7 +247,9 @@ class CustOMICS(nn.Module):
             raise ConfigurationError("classif_params['n_class'] must be >= 2.")
         for key in ("switch", "lr"):
             if key not in train_params:
-                raise ConfigurationError(f"train_params is missing required key '{key}'.")
+                raise ConfigurationError(
+                    f"train_params is missing required key '{key}'."
+                )
 
     def _build_optimizer(self) -> Adam:
         return Adam(self.parameters(), lr=self.lr)
@@ -363,9 +374,10 @@ class CustOMICS(nn.Module):
                 )
         else:
             z = z_or_reps
-            task_loss = (
-                self.lambda_survival * CoxLoss(os_time, os_event, self.survival_predictor(z), self.device)
-                + self.lambda_classif * classification_loss("CE", self.classifier(z), labels)
+            task_loss = self.lambda_survival * CoxLoss(
+                os_time, os_event, self.survival_predictor(z), self.device
+            ) + self.lambda_classif * classification_loss(
+                "CE", self.classifier(z), labels
             )
 
         return recon_loss + task_loss
@@ -454,7 +466,9 @@ class CustOMICS(nn.Module):
         lt_train = get_common_samples(list(omics_train.values()) + [clinical_df])
         self.baseline = self._compute_baseline(clinical_df, lt_train, event, surv_time)
         train_loader = DataLoader(
-            MultiOmicsDataset(omics_train, encoded_clinical, lt_train, label, event, surv_time),
+            MultiOmicsDataset(
+                omics_train, encoded_clinical, lt_train, label, event, surv_time
+            ),
             batch_size=batch_size,
             shuffle=True,
             **loader_kw,
@@ -464,7 +478,9 @@ class CustOMICS(nn.Module):
         if omics_val is not None:
             lt_val = get_common_samples(list(omics_val.values()) + [clinical_df])
             val_loader = DataLoader(
-                MultiOmicsDataset(omics_val, encoded_clinical, lt_val, label, event, surv_time),
+                MultiOmicsDataset(
+                    omics_val, encoded_clinical, lt_val, label, event, surv_time
+                ),
                 batch_size=batch_size,
                 shuffle=False,
                 **loader_kw,
@@ -480,7 +496,10 @@ class CustOMICS(nn.Module):
                 if verbose:
                     logger.info(
                         "Epoch %d/%d | train=%.4f | val=%.4f",
-                        epoch + 1, n_epochs, train_loss, val_loss,
+                        epoch + 1,
+                        n_epochs,
+                        train_loss,
+                        val_loss,
                     )
             else:
                 self.history.append((train_loss,))
@@ -514,10 +533,16 @@ class CustOMICS(nn.Module):
                 )
 
     def _compute_baseline(
-        self, clinical_df: pd.DataFrame, lt_samples: List[str], event: str, surv_time: str
+        self,
+        clinical_df: pd.DataFrame,
+        lt_samples: List[str],
+        event: str,
+        surv_time: str,
     ):
         kmf = KaplanMeierFitter()
-        kmf.fit(clinical_df.loc[lt_samples, surv_time], clinical_df.loc[lt_samples, event])
+        kmf.fit(
+            clinical_df.loc[lt_samples, surv_time], clinical_df.loc[lt_samples, event]
+        )
         return kmf.survival_function_
 
     # ------------------------------------------------------------------ #
@@ -575,9 +600,9 @@ class CustOMICS(nn.Module):
         """
         self._require_fitted()
         self._set_eval_mode()
-        z = torch.tensor(self.get_latent_representation(omics_df), dtype=torch.float32).to(
-            self.device
-        )
+        z = torch.tensor(
+            self.get_latent_representation(omics_df), dtype=torch.float32
+        ).to(self.device)
         with torch.no_grad():
             logits = self.classifier(z)
         return torch.argmax(logits, dim=1).cpu().numpy()
@@ -610,7 +635,9 @@ class CustOMICS(nn.Module):
         self._set_eval_mode()
         with torch.no_grad():
             risk_scores = self.survival_predictor(z).cpu().numpy()
-        return {s: self.baseline * np.exp(r[0]) for s, r in zip(lt_samples, risk_scores)}
+        return {
+            s: self.baseline * np.exp(r[0]) for s, r in zip(lt_samples, risk_scores)
+        }
 
     def source_predict(self, x: torch.Tensor, source: str) -> torch.Tensor:
         """Predict class logits from a single-source input tensor.
@@ -704,7 +731,9 @@ class CustOMICS(nn.Module):
         )
         lt_samples = get_common_samples(list(omics_test.values()) + [clinical_df])
         test_loader = DataLoader(
-            MultiOmicsDataset(omics_test, encoded_clinical, lt_samples, label, event, surv_time),
+            MultiOmicsDataset(
+                omics_test, encoded_clinical, lt_samples, label, event, surv_time
+            ),
             batch_size=batch_size,
             shuffle=False,
             **loader_kw,
@@ -732,11 +761,13 @@ class CustOMICS(nn.Module):
 
         if task == "survival":
             hazard_cat = np.vstack(all_hazard)
-            return float(CIndex_lifeline(
-                hazard_cat,
-                np.concatenate(all_os_event),
-                np.concatenate(all_os_time),
-            ))
+            return float(
+                CIndex_lifeline(
+                    hazard_cat,
+                    np.concatenate(all_os_event),
+                    np.concatenate(all_os_time),
+                )
+            )
 
         y_true = np.concatenate(all_y_true)
         y_pred = np.concatenate(all_y_pred)
@@ -810,13 +841,16 @@ class CustOMICS(nn.Module):
         self._require_fitted()
         expr_df = omics_df[source]
         sample_id = list(set(sample_id) & set(expr_df.index))
-        phenotype = processPhenotypeDataForSamples(clinical_df, sample_id, self.label_encoder)
+        phenotype = processPhenotypeDataForSamples(
+            clinical_df, sample_id, self.label_encoder
+        )
         condition = phenotype[label] == subtype
 
         expr_df = expr_df.loc[sample_id, :]
         background = addToTensor(randomTrainingSample(expr_df, 10), device)
         foreground = addToTensor(
-            splitExprandSample(condition=condition, sample_size=10, expr=expr_df), device
+            splitExprandSample(condition=condition, sample_size=10, expr=expr_df),
+            device,
         )
 
         explainer = shap.DeepExplainer(ModelWrapper(self, source=source), background)
@@ -924,7 +958,9 @@ class CustOMICS(nn.Module):
         """
         from customics.visualization import plot_survival_stratification as _plot
 
-        _plot(self, omics_df, clinical_df, event, surv_time, plot_title, save_path, show)
+        _plot(
+            self, omics_df, clinical_df, event, surv_time, plot_title, save_path, show
+        )
 
     # ---------------------------------------------------------------------- #
     # Serialisation
@@ -943,16 +979,16 @@ class CustOMICS(nn.Module):
             Destination file (conventionally ``*.pt`` or ``*.pth``).
         """
         checkpoint = {
-            "source_params":   self._source_params,
-            "central_params":  self._central_params,
-            "classif_params":  self._classif_params,
-            "surv_params":     self._surv_params,
-            "train_params":    self._train_params,
-            "state_dict":      self.state_dict(),
-            "label_encoder":   self.label_encoder,
+            "source_params": self._source_params,
+            "central_params": self._central_params,
+            "classif_params": self._classif_params,
+            "surv_params": self._surv_params,
+            "train_params": self._train_params,
+            "state_dict": self.state_dict(),
+            "label_encoder": self.label_encoder,
             "one_hot_encoder": self.one_hot_encoder,
-            "history":         self.history,
-            "_is_fitted":      self._is_fitted,
+            "history": self.history,
+            "_is_fitted": self._is_fitted,
         }
         torch.save(checkpoint, path)
         logger.info("Model saved to %s", path)
@@ -977,18 +1013,18 @@ class CustOMICS(nn.Module):
             device = torch.device("cpu")
         checkpoint = torch.load(path, map_location=device, weights_only=False)
         model = cls(
-            source_params  = checkpoint["source_params"],
-            central_params = checkpoint["central_params"],
-            classif_params = checkpoint["classif_params"],
-            surv_params    = checkpoint["surv_params"],
-            train_params   = checkpoint["train_params"],
-            device         = device,
+            source_params=checkpoint["source_params"],
+            central_params=checkpoint["central_params"],
+            classif_params=checkpoint["classif_params"],
+            surv_params=checkpoint["surv_params"],
+            train_params=checkpoint["train_params"],
+            device=device,
         )
         model.load_state_dict(checkpoint["state_dict"])
-        model.label_encoder   = checkpoint.get("label_encoder")
+        model.label_encoder = checkpoint.get("label_encoder")
         model.one_hot_encoder = checkpoint.get("one_hot_encoder")
-        model.history         = checkpoint.get("history", [])
-        model._is_fitted      = checkpoint.get("_is_fitted", True)
+        model.history = checkpoint.get("history", [])
+        model._is_fitted = checkpoint.get("_is_fitted", True)
         model.to(device)
         logger.info("Model loaded from %s", path)
         return model

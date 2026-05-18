@@ -7,6 +7,11 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: write
+  id-token: write
+  pages: write
+
 jobs:
   pre-commit:
     runs-on: ubuntu-latest
@@ -22,7 +27,7 @@ jobs:
 
     strategy:
       matrix:
-        python-version: ["3.10", "3.11"]
+        python-version: ["3.11", "3.12", "3.13"]
 
     steps:
       - uses: actions/checkout@v4
@@ -53,3 +58,90 @@ jobs:
 
       - name: Run short tests
         run: poe test_no_multimodal
+
+
+  deploy-docs:
+    needs: [tests, test_pip_install]
+    if: contains(github.ref, 'tags')
+    name: "Deploy documentation"
+    runs-on: ubuntu-latest
+    environment: github-pages
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up the environment
+        uses: ./.github/actions/setup-python-env
+
+      - name: Install extra dependencies
+        run: uv sync --dev
+
+      - name: Build documentation
+        run: uv run zensical build --clean
+      - uses: actions/upload-pages-artifact@v5
+        id: pages_artifact
+        with:
+          path: site
+          name: github-pages-${{ github.run_id }}
+      - uses: actions/deploy-pages@v5
+        id: deployment
+        with:
+          artifact_name: github-pages-${{ github.run_id }}
+
+  pypi-release:
+      needs: [tests, test_pip_install]
+      if: contains(github.ref, 'tags')
+      name: "TestPyPI release"
+      runs-on: ubuntu-latest
+
+      steps:
+        - uses: actions/checkout@v4
+
+        - name: Set up the environment
+          uses: ./.github/actions/setup-python-env
+          with:
+            python-version: "3.12"
+
+        - name: Build
+          run: uv build
+
+        - name: Publish to TestPyPI
+          run: uv publish dist/* \
+            --publish-url https://test.pypi.org/legacy/ \
+            -t ${{ secrets.TEST_PYPI_TOKEN }}
+
+
+  docker-images-release:
+    needs: [pypi-release]
+    if: contains(github.ref, 'tags')
+    name: "Docker images release"
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Export tag version
+        run: |
+          TAG="${GITHUB_REF#refs/tags/v}"
+          echo "VERSION=$TAG" >> $GITHUB_ENV
+
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ vars.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          push: true
+          platforms: linux/amd64
+          tags: |
+            ${{ vars.DOCKERHUB_USERNAME }}/customics:${{ env.VERSION }}
+            ${{ vars.DOCKERHUB_USERNAME }}/customics:latest
+          context: ./docker/customics
+          build-args: |
+            NOVAE_VERSION=${{ env.VERSION }}

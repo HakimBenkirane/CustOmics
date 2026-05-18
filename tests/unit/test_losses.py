@@ -25,7 +25,9 @@ class TestClassificationLoss:
 
     def test_unknown_loss_raises(self):
         with pytest.raises(ValueError, match="not supported"):
-            classification_loss("MSE", torch.randn(4, 2), torch.zeros(4, dtype=torch.long))
+            classification_loss(
+                "MSE", torch.randn(4, 2), torch.zeros(4, dtype=torch.long)
+            )
 
     def test_gradients_flow(self):
         logits = torch.randn(8, 3, requires_grad=True)

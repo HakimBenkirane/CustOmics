@@ -45,20 +45,30 @@ class Encoder(nn.Module):
         super().__init__()
         layers: OrderedDict[str, nn.Module] = OrderedDict()
         layers["InputLayer"] = FullyConnectedLayer(
-            input_dim, hidden_dim[0],
-            norm_layer=norm_layer, leaky_slope=leaky_slope,
-            dropout=dropout, activation=True,
+            input_dim,
+            hidden_dim[0],
+            norm_layer=norm_layer,
+            leaky_slope=leaky_slope,
+            dropout=dropout,
+            activation=True,
         )
         for i in range(1, len(hidden_dim)):
             layers[f"Layer{i}"] = FullyConnectedLayer(
-                hidden_dim[i - 1], hidden_dim[i],
-                norm_layer=norm_layer, leaky_slope=leaky_slope,
-                dropout=dropout if i % 2 == 0 else 0.0, activation=True,
+                hidden_dim[i - 1],
+                hidden_dim[i],
+                norm_layer=norm_layer,
+                leaky_slope=leaky_slope,
+                dropout=dropout if i % 2 == 0 else 0.0,
+                activation=True,
             )
         layers["OutputLayer"] = FullyConnectedLayer(
-            hidden_dim[-1], latent_dim,
-            norm_layer=norm_layer, leaky_slope=leaky_slope,
-            dropout=0.0, activation=False, normalization=False,
+            hidden_dim[-1],
+            latent_dim,
+            norm_layer=norm_layer,
+            leaky_slope=leaky_slope,
+            dropout=0.0,
+            activation=False,
+            normalization=False,
         )
         self.net = nn.Sequential(layers)
 

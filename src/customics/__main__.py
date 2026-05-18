@@ -5,7 +5,6 @@ from __future__ import annotations
 import argparse
 import sys
 
-import numpy as np
 import torch
 
 
@@ -14,18 +13,48 @@ def main() -> None:
         prog="customics",
         description="Train and evaluate a CustOMICS multi-omics integration model.",
     )
-    parser.add_argument("-c", "--cohorts", type=str, required=True,
-                        help="Cohort name(s), e.g. TCGA-BRCA")
-    parser.add_argument("-dv", "--device", type=str, default="cpu",
-                        help="Compute device: 'cpu' or 'cuda'")
-    parser.add_argument("-dr", "--data_directory", type=str, default="data/",
-                        help="Root directory containing omics and clinical data")
-    parser.add_argument("-res", "--result_directory", type=str, default="results/",
-                        help="Directory for saving results and plots")
-    parser.add_argument("-t", "--task", type=str,
-                        choices=["classification", "survival"], default="classification")
-    parser.add_argument("-src", "--sources", type=str, default="CNV,RNAseq,methyl",
-                        help="Comma-separated omics sources to integrate")
+    parser.add_argument(
+        "-c",
+        "--cohorts",
+        type=str,
+        required=True,
+        help="Cohort name(s), e.g. TCGA-BRCA",
+    )
+    parser.add_argument(
+        "-dv",
+        "--device",
+        type=str,
+        default="cpu",
+        help="Compute device: 'cpu' or 'cuda'",
+    )
+    parser.add_argument(
+        "-dr",
+        "--data_directory",
+        type=str,
+        default="data/",
+        help="Root directory containing omics and clinical data",
+    )
+    parser.add_argument(
+        "-res",
+        "--result_directory",
+        type=str,
+        default="results/",
+        help="Directory for saving results and plots",
+    )
+    parser.add_argument(
+        "-t",
+        "--task",
+        type=str,
+        choices=["classification", "survival"],
+        default="classification",
+    )
+    parser.add_argument(
+        "-src",
+        "--sources",
+        type=str,
+        default="CNV,RNAseq,methyl",
+        help="Comma-separated omics sources to integrate",
+    )
     parser.add_argument("-nc", "--num_classes", type=int, default=4)
     parser.add_argument("-b", "--batch_size", type=int, default=32)
     parser.add_argument("-e", "--epochs", type=int, default=20)
@@ -49,10 +78,6 @@ def main() -> None:
         device = torch.device("cpu")
 
     sources = args.sources.split(",")
-    hidden_dim = [int(x) for x in args.hidden_dim.split(",")]
-    central_dim = [int(x) for x in args.central_dim.split(",")]
-    classifier_dim = [int(x) for x in args.classifier_dim.split(",")]
-    survival_dim = [int(x) for x in args.survival_dim.split(",")]
 
     print(
         f"customics v0.1.0 — task={args.task}, cohort={args.cohorts}, "

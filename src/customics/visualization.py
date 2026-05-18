@@ -36,8 +36,13 @@ def plot_loss(
     plt.figure(figsize=figsize)
     plt.title("Loss vs. epochs")
     plt.vlines(
-        x=switch_epoch, ymin=0, ymax=max(h[0] if isinstance(h, tuple) else h for h in history) * 1.1,
-        colors="purple", ls="--", lw=2, label="phase 2 switch",
+        x=switch_epoch,
+        ymin=0,
+        ymax=max(h[0] if isinstance(h, tuple) else h for h in history) * 1.1,
+        colors="purple",
+        ls="--",
+        lw=2,
+        label="phase 2 switch",
     )
     train_losses = [h[0] if isinstance(h, tuple) else h for h in history]
     plt.plot(range(n_epochs), train_losses, label="train loss")
